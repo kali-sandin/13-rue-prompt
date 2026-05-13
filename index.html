@@ -7,22 +7,27 @@
   <meta name="description" content="Libro interactivo de cómic con páginas borrables." />
   <link rel="stylesheet" href="src/styles.css" />
 </head>
-<body>
-  <main class="app" aria-label="13 Rue del Prompt">
+<body class="intro-active">
+  <main class="app" id="app" aria-label="13 Rue del Prompt">
     <section class="book-stage" id="bookStage">
-      <img class="book-background" src="assets/book/book-open.png" alt="Libro abierto en blanco" />
+      <img class="book-background" data-image-base="assets/book/book-open" alt="Libro abierto en blanco" />
 
       <article class="page page-left" aria-label="Página izquierda">
-        <img class="page-image page-base" src="assets/pages/left-base.png" alt="Contenido oculto de la página izquierda" />
-        <canvas class="scratch-layer" data-cover="assets/pages/left-cover.png" aria-label="Capa borrable izquierda"></canvas>
+        <img class="page-image page-base" data-image-base="assets/pages/left-base" alt="Contenido oculto de la página izquierda" />
+        <canvas class="scratch-layer" data-cover-base="assets/pages/left-cover" aria-label="Capa borrable izquierda"></canvas>
       </article>
 
       <article class="page page-right" aria-label="Página derecha">
-        <img class="page-image page-base" src="assets/pages/right-base.png" alt="Contenido oculto de la página derecha" />
-        <canvas class="scratch-layer" data-cover="assets/pages/right-cover.png" aria-label="Capa borrable derecha"></canvas>
+        <img class="page-image page-base" data-image-base="assets/pages/right-base" alt="Contenido oculto de la página derecha" />
+        <canvas class="scratch-layer" data-cover-base="assets/pages/right-cover" aria-label="Capa borrable derecha"></canvas>
       </article>
 
       <div class="rubber-cursor" id="rubberCursor" aria-hidden="true"></div>
+
+      <button class="intro-cover" id="introCover" type="button" aria-label="Abrir el libro">
+        <img data-image-base="assets/book/cover" alt="Portada inicial" />
+        <span>Click para abrir</span>
+      </button>
     </section>
 
     <nav class="controls" aria-label="Controles">
@@ -32,8 +37,9 @@
     </nav>
   </main>
 
-  <audio id="eraseSound" src="assets/audio/erase.mp3" preload="auto"></audio>
-  <audio id="music" src="assets/audio/music.mp3" preload="auto" loop></audio>
+  <audio id="eraseSound" data-audio-base="assets/audio/erase" preload="auto"></audio>
+  <audio id="pageFlipSound" data-audio-base="assets/audio/page-flip" preload="auto"></audio>
+  <audio id="music" data-audio-base="assets/audio/music" preload="auto" loop></audio>
 
   <script src="src/app.js" defer></script>
 </body>

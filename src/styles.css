@@ -2,9 +2,9 @@
   --paper: #f6ead0;
   --paper-deep: #dfcba5;
   --ink: #332418;
-  --control-bg: rgba(255, 247, 226, 0.88);
+  --control-bg: rgba(255, 247, 226, 0.9);
   --page-shadow: rgba(56, 31, 12, 0.24);
-  --eraser-size: 92px;
+  --eraser-size: 78px;
 }
 
 * { box-sizing: border-box; }
@@ -28,10 +28,18 @@ body {
   padding: 2.2vmin;
 }
 
+.app:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255,255,255,.28), transparent 34%),
+    linear-gradient(145deg, #b98b51 0%, #704320 52%, #321d13 100%);
+}
+
 .book-stage {
   position: relative;
-  width: min(100vw, calc(100vh * 16 / 9));
-  aspect-ratio: 16 / 9;
+  width: min(100vw, calc(100vh * 1672 / 941));
+  aspect-ratio: 1672 / 941;
   overflow: hidden;
   border-radius: 2.2vmin;
   box-shadow: 0 3vmin 8vmin rgba(0, 0, 0, .42);
@@ -39,6 +47,8 @@ body {
   user-select: none;
   isolation: isolate;
 }
+
+body.intro-active .book-stage { cursor: auto; }
 
 .book-stage::before {
   content: "";
@@ -60,23 +70,20 @@ body {
   pointer-events: none;
 }
 
-.book-background::after { content: none; }
-
 .page {
   position: absolute;
   z-index: 2;
-  top: 13.2%;
-  width: 31.4%;
-  height: 70.8%;
-  border-radius: 1.2vmin;
+  top: calc(55 / 941 * 100%);
+  width: calc(666 / 1672 * 100%);
+  height: calc(868 / 941 * 100%);
+  border-radius: .55vmin;
   overflow: hidden;
   background: var(--paper);
-  box-shadow: inset 0 0 2vmin rgba(255,255,255,.7), 0 .9vmin 2vmin var(--page-shadow);
-  transform: perspective(110vmin) rotateY(var(--turn, 0deg));
+  box-shadow: inset 0 0 1.35vmin rgba(255,255,255,.52), 0 .65vmin 1.3vmin var(--page-shadow);
 }
 
-.page-left { left: 15.7%; --turn: 1.4deg; }
-.page-right { right: 15.7%; --turn: -1.4deg; }
+.page-left { left: calc(155 / 1672 * 100%); }
+.page-right { left: calc(850 / 1672 * 100%); top: calc(35 / 941 * 100%); }
 
 .page::before {
   content: attr(aria-label);
@@ -124,20 +131,71 @@ body {
   opacity: 0;
   transform: translate(-50%, -50%);
   background:
+    var(--eraser-image, none) center / contain no-repeat,
     radial-gradient(circle at 35% 32%, rgba(255,255,255,.96), rgba(255,255,255,.6) 35%, rgba(241,190,192,.95) 36% 66%, rgba(155,69,75,.78) 67% 100%);
-  border: .55vmin solid rgba(255,255,255,.74);
-  box-shadow: 0 .8vmin 2vmin rgba(0,0,0,.25), inset 0 -.45vmin .9vmin rgba(89,24,31,.22);
-  mix-blend-mode: multiply;
+  filter: drop-shadow(0 .8vmin 1.4vmin rgba(0,0,0,.25));
 }
 
-.book-stage:hover .rubber-cursor { opacity: .88; }
-.book-stage.is-erasing .rubber-cursor { transform: translate(-50%, -50%) scale(.86); }
+body:not(.intro-active) .book-stage:hover .rubber-cursor { opacity: .96; }
+.book-stage.is-erasing .rubber-cursor { transform: translate(-50%, -50%) scale(.88); }
+
+.intro-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #2b170f;
+  cursor: pointer;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.intro-cover.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .45s ease, visibility .45s ease;
+}
+
+.intro-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.intro-cover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(circle at 50% 40%, transparent 0 38%, rgba(0,0,0,.36) 100%);
+}
+
+.intro-cover span {
+  position: relative;
+  z-index: 2;
+  align-self: end;
+  margin-bottom: 10vmin;
+  padding: .75rem 1.25rem;
+  border-radius: 999px;
+  color: #3f2917;
+  font-weight: 900;
+  letter-spacing: .02em;
+  background: rgba(255, 247, 226, .9);
+  box-shadow: 0 .7rem 1.8rem rgba(0,0,0,.26);
+}
 
 .controls {
   position: fixed;
   left: 50%;
   bottom: max(1.6vmin, env(safe-area-inset-bottom));
-  z-index: 20;
+  z-index: 30;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -165,10 +223,10 @@ button {
 button:hover { filter: brightness(1.04); }
 button:active { transform: translateY(1px); }
 
-@media (max-aspect-ratio: 4 / 3) {
+@media (max-aspect-ratio: 1672 / 941) {
   .book-stage {
     width: 100vw;
-    height: min(100vh, calc(100vw * 9 / 16));
+    height: min(100vh, calc(100vw * 941 / 1672));
   }
 
   .controls {
