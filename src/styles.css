@@ -1,0 +1,178 @@
+:root {
+  --paper: #f6ead0;
+  --paper-deep: #dfcba5;
+  --ink: #332418;
+  --control-bg: rgba(255, 247, 226, 0.88);
+  --page-shadow: rgba(56, 31, 12, 0.24);
+  --eraser-size: 92px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255,255,255,.28), transparent 34%),
+    linear-gradient(145deg, #b98b51 0%, #704320 52%, #321d13 100%);
+}
+
+.app {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 2.2vmin;
+}
+
+.book-stage {
+  position: relative;
+  width: min(100vw, calc(100vh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 2.2vmin;
+  box-shadow: 0 3vmin 8vmin rgba(0, 0, 0, .42);
+  cursor: none;
+  user-select: none;
+  isolation: isolate;
+}
+
+.book-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at center, rgba(255, 245, 216, .95) 0 18%, transparent 48%),
+    linear-gradient(90deg, #efe0bf, #fff4d8 47%, #c7a97a 50%, #fff3d2 53%, #ecd7ad);
+}
+
+.book-background {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.book-background::after { content: none; }
+
+.page {
+  position: absolute;
+  z-index: 2;
+  top: 13.2%;
+  width: 31.4%;
+  height: 70.8%;
+  border-radius: 1.2vmin;
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow: inset 0 0 2vmin rgba(255,255,255,.7), 0 .9vmin 2vmin var(--page-shadow);
+  transform: perspective(110vmin) rotateY(var(--turn, 0deg));
+}
+
+.page-left { left: 15.7%; --turn: 1.4deg; }
+.page-right { right: 15.7%; --turn: -1.4deg; }
+
+.page::before {
+  content: attr(aria-label);
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  padding: 7%;
+  text-align: center;
+  font: 800 clamp(1rem, 2.2vmin, 1.8rem)/1.1 ui-rounded, "Comic Sans MS", cursive;
+  color: rgba(97, 66, 35, .34);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 8.5%, rgba(110, 75, 34, .05) 8.7% 9%),
+    var(--paper);
+}
+
+.page-image,
+.scratch-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.page-image {
+  z-index: 1;
+  object-fit: cover;
+  background: var(--paper);
+}
+
+.scratch-layer {
+  z-index: 2;
+  touch-action: none;
+}
+
+.rubber-cursor {
+  position: fixed;
+  z-index: 10;
+  width: var(--eraser-size);
+  height: var(--eraser-size);
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(circle at 35% 32%, rgba(255,255,255,.96), rgba(255,255,255,.6) 35%, rgba(241,190,192,.95) 36% 66%, rgba(155,69,75,.78) 67% 100%);
+  border: .55vmin solid rgba(255,255,255,.74);
+  box-shadow: 0 .8vmin 2vmin rgba(0,0,0,.25), inset 0 -.45vmin .9vmin rgba(89,24,31,.22);
+  mix-blend-mode: multiply;
+}
+
+.book-stage:hover .rubber-cursor { opacity: .88; }
+.book-stage.is-erasing .rubber-cursor { transform: translate(-50%, -50%) scale(.86); }
+
+.controls {
+  position: fixed;
+  left: 50%;
+  bottom: max(1.6vmin, env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .7rem;
+  transform: translateX(-50%);
+  padding: .65rem;
+  border: 1px solid rgba(77, 48, 18, .22);
+  border-radius: 999px;
+  background: var(--control-bg);
+  box-shadow: 0 .8rem 2rem rgba(0, 0, 0, .18);
+  backdrop-filter: blur(8px);
+}
+
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: .72rem 1rem;
+  color: #3f2917;
+  font-weight: 800;
+  background: linear-gradient(#fff7df, #eacb91);
+  box-shadow: inset 0 1px rgba(255,255,255,.9), 0 .25rem .7rem rgba(95, 53, 16, .16);
+  cursor: pointer;
+}
+
+button:hover { filter: brightness(1.04); }
+button:active { transform: translateY(1px); }
+
+@media (max-aspect-ratio: 4 / 3) {
+  .book-stage {
+    width: 100vw;
+    height: min(100vh, calc(100vw * 9 / 16));
+  }
+
+  .controls {
+    width: calc(100vw - 1rem);
+    border-radius: 1.2rem;
+  }
+}

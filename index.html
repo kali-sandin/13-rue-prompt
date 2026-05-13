@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>13 Rue del Prompt</title>
+  <meta name="description" content="Libro interactivo de cómic con páginas borrables." />
+  <link rel="stylesheet" href="src/styles.css" />
+</head>
+<body>
+  <main class="app" aria-label="13 Rue del Prompt">
+    <section class="book-stage" id="bookStage">
+      <img class="book-background" src="assets/book/book-open.png" alt="Libro abierto en blanco" />
+
+      <article class="page page-left" aria-label="Página izquierda">
+        <img class="page-image page-base" src="assets/pages/left-base.png" alt="Contenido oculto de la página izquierda" />
+        <canvas class="scratch-layer" data-cover="assets/pages/left-cover.png" aria-label="Capa borrable izquierda"></canvas>
+      </article>
+
+      <article class="page page-right" aria-label="Página derecha">
+        <img class="page-image page-base" src="assets/pages/right-base.png" alt="Contenido oculto de la página derecha" />
+        <canvas class="scratch-layer" data-cover="assets/pages/right-cover.png" aria-label="Capa borrable derecha"></canvas>
+      </article>
+
+      <div class="rubber-cursor" id="rubberCursor" aria-hidden="true"></div>
+    </section>
+
+    <nav class="controls" aria-label="Controles">
+      <button type="button" id="resetButton">Reiniciar páginas</button>
+      <button type="button" id="fullscreenButton">Pantalla completa</button>
+      <button type="button" id="soundButton" aria-pressed="false">Sonido: off</button>
+    </nav>
+  </main>
+
+  <audio id="eraseSound" src="assets/audio/erase.mp3" preload="auto"></audio>
+  <audio id="music" src="assets/audio/music.mp3" preload="auto" loop></audio>
+
+  <script src="src/app.js" defer></script>
+</body>
+</html>
