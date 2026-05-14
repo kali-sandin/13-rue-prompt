@@ -46,7 +46,8 @@ body {
   perspective: 1800px;
 }
 
-body.cover-active .book-stage { cursor: auto; }
+body.cover-active .book-stage,
+body.spread-active:not(.eraser-active) .book-stage { cursor: auto; }
 
 .book-stage::before { display: none; }
 
@@ -178,31 +179,35 @@ body.eraser-active .book-stage:hover .rubber-cursor { opacity: .96; }
   position: fixed;
   top: 50%;
   z-index: 35;
-  width: clamp(42px, 5.2vmin, 72px);
-  height: clamp(72px, 12vmin, 132px);
+  width: clamp(34px, 4.4vmin, 58px);
+  height: clamp(58px, 9.5vmin, 104px);
   transform: translateY(-50%);
   display: grid;
   place-items: center;
   padding: 0;
   border: 0;
   border-radius: 999px;
-  color: rgba(255, 247, 226, .42);
-  background: rgba(0, 0, 0, .32);
-  font-size: clamp(2.4rem, 8vmin, 6.4rem);
+  color: rgba(255, 247, 226, .26);
+  background: rgba(0, 0, 0, .52);
+  font-size: clamp(1.8rem, 5.4vmin, 4.1rem);
   font-family: Georgia, serif;
-  line-height: 1;
+  line-height: .82;
   text-shadow: 0 .35rem 1rem rgba(0,0,0,.38);
   cursor: pointer;
   transition: transform .16s ease, opacity .16s ease, background .16s ease;
 }
 
-.nav-prev { left: max(.35rem, env(safe-area-inset-left)); }
+.nav-prev {
+  left: max(.35rem, env(safe-area-inset-left));
+  color: rgba(255, 247, 226, .18);
+}
 .nav-next { right: max(.35rem, env(safe-area-inset-right)); }
 .nav-arrow:hover:not(:disabled) {
-  color: rgba(255, 247, 226, .56);
-  background: rgba(0, 0, 0, .46);
+  color: rgba(255, 247, 226, .38);
+  background: rgba(0, 0, 0, .64);
   transform: translateY(-50%) scale(1.04);
 }
+.nav-prev:hover:not(:disabled) { color: rgba(255, 247, 226, .28); }
 .nav-arrow:disabled {
   opacity: .18;
   cursor: default;
@@ -348,13 +353,13 @@ button:active { transform: translateY(1px); }
 @keyframes turnForward {
   0% { transform: rotateY(0deg) translateX(0); opacity: .98; }
   48% { transform: rotateY(-82deg) translateX(-8%); opacity: .95; }
-  100% { transform: rotateY(-176deg) translateX(-112%); opacity: 0; }
+  100% { transform: translateX(-112%) rotateY(-176deg); opacity: 0; }
 }
 
 @keyframes turnBackward {
   0% { transform: rotateY(0deg) translateX(0); opacity: .98; }
   48% { transform: rotateY(82deg) translateX(8%); opacity: .95; }
-  100% { transform: rotateY(176deg) translateX(112%); opacity: 0; }
+  100% { transform: translateX(112%) rotateY(176deg); opacity: 0; }
 }
 
 @media (max-width: 720px) {
@@ -367,7 +372,7 @@ button:active { transform: translateY(1px); }
     font-size: .85rem;
   }
   .nav-arrow {
-    width: 38px;
-    height: 76px;
+    width: 34px;
+    height: 66px;
   }
 }

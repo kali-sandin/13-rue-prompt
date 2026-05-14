@@ -241,9 +241,24 @@ function resizeCanvas(canvas) {
   drawCover(canvas);
 }
 
+function formatBookDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  let date = null;
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (iso) date = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  else if (slash) date = new Date(Number(slash[3]), Number(slash[2]) - 1, Number(slash[1]));
+
+  if (!date || Number.isNaN(date.getTime())) return raw;
+  return new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+}
+
 function pageInfoHtml(page) {
   if (!page) return '';
-  const date = page.date ? `<div class="info-date">${escapeHtml(page.date)}</div>` : '';
+  const formattedDate = formatBookDate(page.date);
+  const date = formattedDate ? `<div class="info-date">${escapeHtml(formattedDate)}</div>` : '';
   return `${date}<h2>${escapeHtml(page.title || page.id || 'Página')}</h2><p>${escapeHtml(page.description || '')}</p>`;
 }
 
