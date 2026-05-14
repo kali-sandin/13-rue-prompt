@@ -53,7 +53,7 @@ Después abre `http://127.0.0.1:8080`.
 - **Pantalla completa**: entra/sale de fullscreen manteniendo los botones visibles.
 - **Sonido**: activa/desactiva música de fondo y sonido de borrar; tras abrir la portada queda encendido por defecto.
 
-Las zonas borradas sobreviven a fullscreen, salir de fullscreen y redimensionado; solo se restauran con **Reiniciar páginas**. El libro ocupa todo el viewport con `cover` centrado; si hay recorte por proporción de ventana, el recorte es simétrico.
+Las zonas borradas sobreviven a fullscreen, salir de fullscreen y redimensionado; solo se restauran con **Reiniciar páginas**. El libro se muestra siempre completo con `contain` centrado; si sobra espacio por proporción de ventana, aparecen bandas marrones simétricas.
 
 ## Geometría actual
 
@@ -62,7 +62,7 @@ La composición parte de un fondo de `1672x941 px` y escala todo proporcionalmen
 ```css
 .page-left {
   left: 155px;
-  top: 55px;
+  top: 35px; /* ajustado para alinear visualmente con la página derecha */
   width: 666px;
   height: 868px;
 }

@@ -4,7 +4,7 @@
   --ink: #332418;
   --control-bg: rgba(255, 247, 226, 0.9);
   --page-shadow: rgba(56, 31, 12, 0.24);
-  --eraser-size: 86px;
+  --eraser-size: 116px;
   --book-x: 0px;
   --book-y: 0px;
   --book-w: 100vw;
@@ -20,7 +20,7 @@ body {
   overflow: hidden;
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #111;
+  background: #704320;
 }
 
 .app {
@@ -30,13 +30,13 @@ body {
   place-items: center;
   padding: 0;
   overflow: hidden;
-  background: #111;
+  background: #704320;
 }
 
 .app:fullscreen {
   width: 100vw;
   height: 100vh;
-  background: #111;
+  background: #704320;
 }
 
 .book-stage {
@@ -65,12 +65,12 @@ body.intro-active .book-stage { cursor: auto; }
 
 .book-background {
   position: absolute;
-  inset: 0;
   z-index: 1;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center center;
+  left: var(--book-x);
+  top: var(--book-y);
+  width: var(--book-w);
+  height: var(--book-h);
+  object-fit: fill;
   pointer-events: none;
 }
 
@@ -87,7 +87,7 @@ body.intro-active .book-stage { cursor: auto; }
 
 .page-left {
   left: calc(var(--book-x) + var(--book-w) * 155 / 1672);
-  top: calc(var(--book-y) + var(--book-h) * 55 / 941);
+  top: calc(var(--book-y) + var(--book-h) * 35 / 941);
 }
 
 .page-right {
@@ -140,9 +140,7 @@ body.intro-active .book-stage { cursor: auto; }
   pointer-events: none;
   opacity: 0;
   transform: translate(-50%, -50%);
-  background:
-    var(--eraser-image, none) center / contain no-repeat,
-    radial-gradient(circle at 35% 32%, rgba(255,255,255,.96), rgba(255,255,255,.6) 35%, rgba(241,190,192,.95) 36% 66%, rgba(155,69,75,.78) 67% 100%);
+  background: var(--eraser-image, none) center / contain no-repeat;
   filter: drop-shadow(0 .8vmin 1.4vmin rgba(0,0,0,.25));
 }
 
@@ -158,7 +156,7 @@ body:not(.intro-active) .book-stage:hover .rubber-cursor { opacity: .96; }
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: #2b170f;
+  background: #704320;
   cursor: pointer;
   box-shadow: none;
   overflow: hidden;
@@ -173,10 +171,11 @@ body:not(.intro-active) .book-stage:hover .rubber-cursor { opacity: .96; }
 
 .intro-cover img {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  left: var(--book-x);
+  top: var(--book-y);
+  width: var(--book-w);
+  height: var(--book-h);
+  object-fit: fill;
 }
 
 .intro-cover::before {

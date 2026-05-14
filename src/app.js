@@ -128,11 +128,11 @@ function updateBookGeometry() {
   let bookHeight = rect.height;
 
   if (viewportRatio > BOOK_RATIO) {
-    bookWidth = rect.width;
-    bookHeight = rect.width / BOOK_RATIO;
-  } else {
     bookHeight = rect.height;
     bookWidth = rect.height * BOOK_RATIO;
+  } else {
+    bookWidth = rect.width;
+    bookHeight = rect.width / BOOK_RATIO;
   }
 
   const bookX = (rect.width - bookWidth) / 2;
