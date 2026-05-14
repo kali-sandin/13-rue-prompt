@@ -7,32 +7,42 @@
   <meta name="description" content="Libro interactivo de cómic con páginas borrables." />
   <link rel="stylesheet" href="src/styles.css" />
 </head>
-<body class="intro-active">
+<body>
   <main class="app" id="app" aria-label="13 Rue del Prompt">
     <section class="book-stage" id="bookStage">
-      <img class="book-background" data-image-base="assets/book/book-open" alt="Libro abierto en blanco" />
+      <img class="book-background" id="bookBackground" alt="Libro abierto" />
 
-      <article class="page page-left" aria-label="Página izquierda">
-        <img class="page-image page-base" data-image-base="assets/pages/left-base" alt="Contenido oculto de la página izquierda" />
-        <canvas class="scratch-layer" data-cover-base="assets/pages/left-cover" aria-label="Capa borrable izquierda"></canvas>
+      <button class="nav-arrow nav-prev" id="prevPageButton" type="button" aria-label="Página anterior">&lt;</button>
+      <button class="nav-arrow nav-next" id="nextPageButton" type="button" aria-label="Página siguiente">&gt;</button>
+
+      <article class="page page-left" id="leftPage" aria-label="Página izquierda">
+        <img class="page-image page-base" alt="Contenido oculto de la página izquierda" />
+        <canvas class="scratch-layer" aria-label="Capa borrable izquierda"></canvas>
+        <button class="info-button info-left" type="button" aria-label="Información de la página izquierda">i</button>
+        <aside class="info-popover" role="tooltip"></aside>
       </article>
 
-      <article class="page page-right" aria-label="Página derecha">
-        <img class="page-image page-base" data-image-base="assets/pages/right-base" alt="Contenido oculto de la página derecha" />
-        <canvas class="scratch-layer" data-cover-base="assets/pages/right-cover" aria-label="Capa borrable derecha"></canvas>
+      <article class="page page-right" id="rightPage" aria-label="Página derecha">
+        <img class="page-image page-base" alt="Contenido oculto de la página derecha" />
+        <canvas class="scratch-layer" aria-label="Capa borrable derecha"></canvas>
+        <button class="info-button info-right" type="button" aria-label="Información de la página derecha">i</button>
+        <aside class="info-popover" role="tooltip"></aside>
       </article>
+
+      <div class="cover-screen" id="coverScreen" aria-label="Cubierta del libro">
+        <img id="coverImage" alt="Cubierta del libro" />
+      </div>
+
+      <div class="page-turn" id="pageTurn" aria-hidden="true">
+        <img alt="" />
+      </div>
 
       <div class="rubber-cursor" id="rubberCursor" aria-hidden="true"></div>
-
-      <button class="intro-cover" id="introCover" type="button" aria-label="Abrir el libro">
-        <img data-image-base="assets/book/cover" alt="Portada inicial" />
-        <span>Click para abrir</span>
-      </button>
     </section>
 
     <nav class="controls" aria-label="Controles">
+      <button type="button" id="fullscreenButton">Maximizar</button>
       <button type="button" id="resetButton">Reiniciar páginas</button>
-      <button type="button" id="fullscreenButton">Pantalla completa</button>
       <button type="button" id="soundButton" aria-pressed="false">Sonido: off</button>
     </nav>
   </main>

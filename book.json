@@ -1,0 +1,31 @@
+{
+  "title": "13 Rue del Prompt",
+  "version": 1,
+  "covers": {
+    "front": "assets/book/cover",
+    "back": "assets/book/cover-back",
+    "open": "assets/book/book-open"
+  },
+  "pages": [
+    {
+      "id": "hola-mundo-01",
+      "date": "2026-05-14",
+      "title": "Hola Mundo!",
+      "description": "Hola Mundo! Primera prueba de concepto. Esta semana el prompt fue casi completamente libre a elección de la IA",
+      "order": 1,
+      "tool": "eraser",
+      "base": "assets/pages/left-base",
+      "cover": "assets/pages/left-cover"
+    },
+    {
+      "id": "segundo-intento-02",
+      "date": "2026-05-14",
+      "title": "Segundo intento",
+      "description": "Segundo intento, una estructura más regular del edificio, y ventanas translúcidas... Prompt pedido a Grok para más gancho, aunque censurado de nuevo por WokeGPT Image-2. Y con algunos errores obvios.",
+      "order": 2,
+      "tool": "eraser",
+      "base": "assets/pages/right-base",
+      "cover": "assets/pages/right-cover"
+    }
+  ]
+}

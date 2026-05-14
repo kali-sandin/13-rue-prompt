@@ -1,31 +1,54 @@
 const ERASER_RADIUS = 58;
 const ERASER_INTERVAL_MS = 80;
+const BOOK_WIDTH = 1672;
+const BOOK_HEIGHT = 941;
+const BOOK_RATIO = BOOK_WIDTH / BOOK_HEIGHT;
 
 const app = document.querySelector('#app');
 const stage = document.querySelector('#bookStage');
 const cursor = document.querySelector('#rubberCursor');
-const introCover = document.querySelector('#introCover');
+const bookBackground = document.querySelector('#bookBackground');
+const coverScreen = document.querySelector('#coverScreen');
+const coverImage = document.querySelector('#coverImage');
+const pageTurn = document.querySelector('#pageTurn');
+const pageTurnImage = pageTurn.querySelector('img');
+const prevPageButton = document.querySelector('#prevPageButton');
+const nextPageButton = document.querySelector('#nextPageButton');
 const resetButton = document.querySelector('#resetButton');
 const fullscreenButton = document.querySelector('#fullscreenButton');
 const soundButton = document.querySelector('#soundButton');
 const eraseSound = document.querySelector('#eraseSound');
 const pageFlipSound = document.querySelector('#pageFlipSound');
 const music = document.querySelector('#music');
-const scratchLayers = [...document.querySelectorAll('.scratch-layer')];
-const BOOK_WIDTH = 1672;
-const BOOK_HEIGHT = 941;
-const BOOK_RATIO = BOOK_WIDTH / BOOK_HEIGHT;
+const pageEls = {
+  left: document.querySelector('#leftPage'),
+  right: document.querySelector('#rightPage'),
+};
+
+const FALLBACK_BOOK = {
+  title: '13 Rue del Prompt',
+  covers: {
+    front: 'assets/book/cover',
+    back: 'assets/book/cover-back',
+    open: 'assets/book/book-open',
+  },
+  pages: [],
+};
 
 const state = {
+  book: FALLBACK_BOOK,
+  pageIndex: 0,
   soundEnabled: false,
-  introOpen: false,
   isPointerDown: false,
   lastEraseAt: 0,
-  layers: new Map(),
+  layerState: new Map(),
+  imageCache: new Map(),
 };
 
 function imageCandidates(base) {
-  return [`${base}.jpg`, `${base}.png`];
+  if (!base) return [];
+  if (/\.(png|jpe?g|webp|gif)$/i.test(base)) return [base];
+  return [`${base}.jpg`, `${base}.png`, `${base}.webp`];
 }
 
 function audioCandidates(base) {
@@ -42,22 +65,50 @@ function loadImage(src) {
 }
 
 async function firstExistingImage(base) {
+  if (state.imageCache.has(base)) return state.imageCache.get(base);
   for (const src of imageCandidates(base)) {
     try {
-      return { src, image: await loadImage(src) };
+      const result = { src, image: await loadImage(src) };
+      state.imageCache.set(base, result);
+      return result;
     } catch {
       // Try next extension.
     }
   }
-  return { src: null, image: null };
+  const empty = { src: null, image: null };
+  state.imageCache.set(base, empty);
+  return empty;
 }
 
-async function setupResponsiveImages() {
-  await Promise.all([...document.querySelectorAll('[data-image-base]')].map(async (element) => {
-    const { src } = await firstExistingImage(element.dataset.imageBase);
-    if (src) element.src = src;
-  }));
+function sortedPages(book) {
+  return [...(book.pages || [])].sort((a, b) => {
+    const ao = Number(a.order ?? 0);
+    const bo = Number(b.order ?? 0);
+    if (ao !== bo) return ao - bo;
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+}
 
+function spreadCount() {
+  return Math.max(1, Math.ceil(sortedPages(state.book).length / 2));
+}
+
+function backIndex() {
+  return spreadCount() + 1;
+}
+
+function pageAsset(page, key) {
+  return page && typeof page[key] === 'string' ? page[key] : '';
+}
+
+async function setImageFromBase(img, base) {
+  const { src } = await firstExistingImage(base);
+  if (src) img.src = src;
+  else img.removeAttribute('src');
+}
+
+async function setupStaticAssets() {
+  await setImageFromBase(bookBackground, state.book.covers?.open || FALLBACK_BOOK.covers.open);
   await Promise.all([eraseSound, pageFlipSound, music].map(async (audio) => {
     const [src] = audioCandidates(audio.dataset.audioBase);
     audio.src = src;
@@ -66,6 +117,22 @@ async function setupResponsiveImages() {
   const eraser = await firstExistingImage('assets/ui/eraser');
   if (eraser.src) {
     document.documentElement.style.setProperty('--eraser-image', `url("../${eraser.src}")`);
+  }
+}
+
+async function loadBook() {
+  try {
+    const response = await fetch('book.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`book.json ${response.status}`);
+    const book = await response.json();
+    state.book = {
+      ...FALLBACK_BOOK,
+      ...book,
+      covers: { ...FALLBACK_BOOK.covers, ...(book.covers || {}) },
+      pages: Array.isArray(book.pages) ? book.pages : [],
+    };
+  } catch (error) {
+    console.warn('No se pudo cargar book.json; usando fallback.', error);
   }
 }
 
@@ -100,19 +167,41 @@ function applyErasePoint(ctx, point, width, height) {
   ctx.fill();
 }
 
+function layerForPage(page) {
+  if (!page?.id) return null;
+  if (!state.layerState.has(page.id)) {
+    state.layerState.set(page.id, { coverImage: null, coverLoadedFor: '', erasePoints: [] });
+  }
+  return state.layerState.get(page.id);
+}
+
+async function ensureLayerCover(page) {
+  const layer = layerForPage(page);
+  if (!layer) return null;
+  const cover = pageAsset(page, 'cover');
+  if (layer.coverLoadedFor !== cover) {
+    const { image } = await firstExistingImage(cover);
+    layer.coverImage = image;
+    layer.coverLoadedFor = cover;
+  }
+  return layer;
+}
+
 function drawCover(canvas) {
   const ctx = canvas.getContext('2d');
   const width = canvas.width;
   const height = canvas.height;
-  const layer = state.layers.get(canvas);
+  const page = canvas.closest('.page')?.__pageData;
+  const layer = page ? layerForPage(page) : null;
 
   ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, width, height);
+  if (!page || page.tool !== 'eraser') return;
 
-  if (layer.coverImage) {
+  if (layer?.coverImage) {
     drawImageFill(ctx, layer.coverImage, width, height);
   } else {
-    coverFallback(ctx, width, height, canvas.closest('.page-left') ? 'PORTADA IZQ.' : 'PORTADA DCHA.');
+    coverFallback(ctx, width, height, page.title || 'CUBIERTA');
   }
 
   ctx.save();
@@ -143,30 +232,118 @@ function updateBookGeometry() {
   stage.style.setProperty('--book-h', `${bookHeight}px`);
 }
 
-function resizeLayer(canvas) {
-  if (!state.layers.has(canvas)) return;
-  updateBookGeometry();
+function resizeCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
   canvas.width = Math.max(1, Math.round(rect.width));
   canvas.height = Math.max(1, Math.round(rect.height));
   drawCover(canvas);
 }
 
-async function setupLayer(canvas) {
-  state.layers.set(canvas, { coverImage: null, erasePoints: [] });
-  const { image } = await firstExistingImage(canvas.dataset.coverBase);
-  state.layers.get(canvas).coverImage = image;
-  resizeLayer(canvas);
+function pageInfoHtml(page) {
+  if (!page) return '';
+  const date = page.date ? `<div class="info-date">${escapeHtml(page.date)}</div>` : '';
+  return `${date}<h2>${escapeHtml(page.title || page.id || 'Página')}</h2><p>${escapeHtml(page.description || '')}</p>`;
+}
+
+async function renderPage(side, page) {
+  const el = pageEls[side];
+  const img = el.querySelector('.page-base');
+  const canvas = el.querySelector('.scratch-layer');
+  const popover = el.querySelector('.info-popover');
+  el.__pageData = page || null;
+
+  el.classList.toggle('is-empty', !page);
+  el.classList.toggle('has-info', Boolean(page));
+  popover.innerHTML = pageInfoHtml(page);
+
+  if (!page) {
+    img.removeAttribute('src');
+    canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+
+  await setImageFromBase(img, pageAsset(page, 'base'));
+  await ensureLayerCover(page);
+  resizeCanvas(canvas);
+}
+
+async function renderCurrentPage() {
+  updateBookGeometry();
+  const pages = sortedPages(state.book);
+  const atCover = state.pageIndex === 0;
+  const atBack = state.pageIndex === backIndex();
+  const atSpread = !atCover && !atBack;
+
+  document.body.classList.toggle('cover-active', atCover || atBack);
+  document.body.classList.toggle('back-cover-active', atBack);
+  document.body.classList.toggle('spread-active', atSpread);
+
+  if (atCover || atBack) {
+    const base = atBack ? state.book.covers?.back : state.book.covers?.front;
+    await setImageFromBase(coverImage, base || FALLBACK_BOOK.covers.front);
+  }
+
+  if (atSpread) {
+    const spread = state.pageIndex - 1;
+    await Promise.all([
+      renderPage('left', pages[spread * 2] || null),
+      renderPage('right', pages[spread * 2 + 1] || null),
+    ]);
+  } else {
+    await Promise.all([renderPage('left', null), renderPage('right', null)]);
+  }
+
+  prevPageButton.disabled = state.pageIndex === 0;
+  nextPageButton.disabled = state.pageIndex === backIndex();
+}
+
+function currentTurnImage(direction) {
+  if (direction > 0) {
+    if (state.pageIndex === 0) return coverImage.currentSrc || coverImage.src;
+    const rightImg = pageEls.right.querySelector('.page-base');
+    return rightImg.currentSrc || rightImg.src || bookBackground.currentSrc || bookBackground.src;
+  }
+  if (state.pageIndex === backIndex()) return coverImage.currentSrc || coverImage.src;
+  const leftImg = pageEls.left.querySelector('.page-base');
+  return leftImg.currentSrc || leftImg.src || bookBackground.currentSrc || bookBackground.src;
+}
+
+function playPageTurn(direction) {
+  const src = currentTurnImage(direction);
+  if (src) pageTurnImage.src = src;
+  pageTurn.classList.remove('turn-forward', 'turn-backward', 'is-active');
+  void pageTurn.offsetWidth;
+  pageTurn.classList.add(direction > 0 ? 'turn-forward' : 'turn-backward', 'is-active');
+  window.setTimeout(() => pageTurn.classList.remove('is-active'), 680);
+}
+
+function playFlipSound() {
+  if (!state.soundEnabled) return;
+  pageFlipSound.currentTime = 0;
+  pageFlipSound.play().catch(() => {});
+}
+
+async function goToPage(nextIndex) {
+  const clamped = Math.max(0, Math.min(backIndex(), nextIndex));
+  if (clamped === state.pageIndex) return;
+  const direction = clamped > state.pageIndex ? 1 : -1;
+  setSoundEnabled(true);
+  playFlipSound();
+  playPageTurn(direction);
+  state.pageIndex = clamped;
+  await renderCurrentPage();
 }
 
 function eraseAt(canvas, clientX, clientY) {
+  const page = canvas.closest('.page')?.__pageData;
+  if (!page || page.tool !== 'eraser') return;
+
   const rect = canvas.getBoundingClientRect();
   const x = clientX - rect.left;
   const y = clientY - rect.top;
-
   if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
 
-  const layer = state.layers.get(canvas);
+  const layer = layerForPage(page);
   layer.erasePoints.push({
     x: x / rect.width,
     y: y / rect.height,
@@ -183,7 +360,6 @@ function eraseAt(canvas, clientX, clientY) {
 }
 
 function eraseFromPointer(event) {
-  if (!state.introOpen) return;
   const targetCanvas = event.target.closest?.('.scratch-layer');
   if (!targetCanvas) return;
   eraseAt(targetCanvas, event.clientX, event.clientY);
@@ -203,21 +379,8 @@ function setSoundEnabled(enabled) {
   eraseSound.volume = 0.7;
   pageFlipSound.volume = 0.8;
 
-  if (state.soundEnabled) {
-    music.play().catch(() => {});
-  } else {
-    music.pause();
-  }
-}
-
-function openIntro() {
-  if (state.introOpen) return;
-  state.introOpen = true;
-  document.body.classList.remove('intro-active');
-  introCover.classList.add('is-hidden');
-  setSoundEnabled(true);
-  pageFlipSound.currentTime = 0;
-  pageFlipSound.play().catch(() => {});
+  if (state.soundEnabled) music.play().catch(() => {});
+  else music.pause();
 }
 
 function toggleSound() {
@@ -225,37 +388,44 @@ function toggleSound() {
 }
 
 async function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    await app.requestFullscreen?.();
-  } else {
-    await document.exitFullscreen?.();
-  }
+  if (!document.fullscreenElement) await app.requestFullscreen?.();
+  else await document.exitFullscreen?.();
 }
 
 function updateFullscreenLabel() {
-  fullscreenButton.textContent = document.fullscreenElement ? 'Salir de pantalla completa' : 'Pantalla completa';
+  fullscreenButton.textContent = document.fullscreenElement ? 'Restaurar' : 'Maximizar';
 }
 
 function resetPages() {
-  for (const canvas of scratchLayers) {
-    const layer = state.layers.get(canvas);
+  for (const layer of state.layerState.values()) {
     layer.erasePoints = [];
-    drawCover(canvas);
   }
+  for (const canvas of document.querySelectorAll('.scratch-layer')) drawCover(canvas);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"]/g, (c) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+  }[c]));
 }
 
 async function init() {
   updateBookGeometry();
-  await setupResponsiveImages();
-  await Promise.all(scratchLayers.map((canvas) => setupLayer(canvas)));
+  await loadBook();
+  await setupStaticAssets();
+  await renderCurrentPage();
+  updateFullscreenLabel();
 }
 
 const resizeObserver = new ResizeObserver(() => {
   updateBookGeometry();
-  scratchLayers.forEach((canvas) => resizeLayer(canvas));
+  document.querySelectorAll('.scratch-layer').forEach((canvas) => resizeCanvas(canvas));
 });
 resizeObserver.observe(stage);
-scratchLayers.forEach((canvas) => resizeObserver.observe(canvas));
+Object.values(pageEls).forEach((el) => resizeObserver.observe(el));
 
 stage.addEventListener('pointermove', (event) => {
   updateCursor(event);
@@ -263,7 +433,9 @@ stage.addEventListener('pointermove', (event) => {
 });
 
 stage.addEventListener('pointerdown', (event) => {
-  if (!state.introOpen) return;
+  if (!document.body.classList.contains('spread-active')) return;
+  const targetCanvas = event.target.closest?.('.scratch-layer');
+  if (!targetCanvas) return;
   state.isPointerDown = true;
   stage.classList.add('is-erasing');
   event.target.setPointerCapture?.(event.pointerId);
@@ -275,10 +447,8 @@ window.addEventListener('pointerup', () => {
   stage.classList.remove('is-erasing');
 });
 
-document.addEventListener('click', () => {
-  if (!state.introOpen) openIntro();
-}, { capture: true, once: true });
-introCover.addEventListener('click', openIntro, { once: true });
+prevPageButton.addEventListener('click', () => goToPage(state.pageIndex - 1));
+nextPageButton.addEventListener('click', () => goToPage(state.pageIndex + 1));
 resetButton.addEventListener('click', resetPages);
 fullscreenButton.addEventListener('click', toggleFullscreen);
 soundButton.addEventListener('click', toggleSound);
