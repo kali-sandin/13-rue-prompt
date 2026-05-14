@@ -171,7 +171,7 @@ body.cover-active .page {
   filter: drop-shadow(0 .8vmin 1.4vmin rgba(0,0,0,.25));
 }
 
-body.spread-active .book-stage:hover .rubber-cursor { opacity: .96; }
+body.eraser-active .book-stage:hover .rubber-cursor { opacity: .96; }
 .book-stage.is-erasing .rubber-cursor { transform: translate(-50%, -50%) scale(.88); }
 
 .nav-arrow {
@@ -186,12 +186,12 @@ body.spread-active .book-stage:hover .rubber-cursor { opacity: .96; }
   padding: 0;
   border: 0;
   border-radius: 999px;
-  color: rgba(255, 247, 226, .88);
-  background: rgba(0, 0, 0, .18);
+  color: rgba(255, 247, 226, .42);
+  background: rgba(0, 0, 0, .32);
   font-size: clamp(2.4rem, 8vmin, 6.4rem);
   font-family: Georgia, serif;
   line-height: 1;
-  text-shadow: 0 .35rem 1rem rgba(0,0,0,.65);
+  text-shadow: 0 .35rem 1rem rgba(0,0,0,.38);
   cursor: pointer;
   transition: transform .16s ease, opacity .16s ease, background .16s ease;
 }
@@ -199,7 +199,8 @@ body.spread-active .book-stage:hover .rubber-cursor { opacity: .96; }
 .nav-prev { left: max(.35rem, env(safe-area-inset-left)); }
 .nav-next { right: max(.35rem, env(safe-area-inset-right)); }
 .nav-arrow:hover:not(:disabled) {
-  background: rgba(0, 0, 0, .34);
+  color: rgba(255, 247, 226, .56);
+  background: rgba(0, 0, 0, .46);
   transform: translateY(-50%) scale(1.04);
 }
 .nav-arrow:disabled {
@@ -336,24 +337,24 @@ button:active { transform: translateY(1px); }
 .page-turn.turn-forward {
   left: calc(var(--book-x) + var(--book-w) * 850 / 1672);
   transform-origin: left center;
-  animation: turnForward .68s ease-in-out both;
+  animation: turnForward .48s ease-in-out both;
 }
 .page-turn.turn-backward {
   left: calc(var(--book-x) + var(--book-w) * 155 / 1672);
   transform-origin: right center;
-  animation: turnBackward .68s ease-in-out both;
+  animation: turnBackward .48s ease-in-out both;
 }
 
 @keyframes turnForward {
   0% { transform: rotateY(0deg) translateX(0); opacity: .98; }
-  42% { transform: rotateY(-74deg) translateX(-6%); opacity: .95; }
-  100% { transform: rotateY(-178deg) translateX(-100%); opacity: 0; }
+  48% { transform: rotateY(-82deg) translateX(-8%); opacity: .95; }
+  100% { transform: rotateY(-176deg) translateX(-112%); opacity: 0; }
 }
 
 @keyframes turnBackward {
   0% { transform: rotateY(0deg) translateX(0); opacity: .98; }
-  42% { transform: rotateY(74deg) translateX(6%); opacity: .95; }
-  100% { transform: rotateY(178deg) translateX(100%); opacity: 0; }
+  48% { transform: rotateY(82deg) translateX(8%); opacity: .95; }
+  100% { transform: rotateY(176deg) translateX(112%); opacity: 0; }
 }
 
 @media (max-width: 720px) {

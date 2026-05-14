@@ -39,6 +39,7 @@ const state = {
   book: FALLBACK_BOOK,
   pageIndex: 0,
   soundEnabled: false,
+  soundTouched: false,
   isPointerDown: false,
   lastEraseAt: 0,
   layerState: new Map(),
@@ -94,7 +95,8 @@ function spreadCount() {
 }
 
 function backIndex() {
-  return spreadCount() + 1;
+  // Índice 0 = portada; 1..N = pliegos reales; N+1 = pliego vacío final; N+2 = contraportada.
+  return spreadCount() + 2;
 }
 
 function pageAsset(page, key) {
@@ -273,10 +275,15 @@ async function renderCurrentPage() {
   const atCover = state.pageIndex === 0;
   const atBack = state.pageIndex === backIndex();
   const atSpread = !atCover && !atBack;
+  const spread = atSpread ? state.pageIndex - 1 : -1;
+  const leftPage = atSpread ? (pages[spread * 2] || null) : null;
+  const rightPage = atSpread ? (pages[spread * 2 + 1] || null) : null;
+  const hasEraserTool = [leftPage, rightPage].some((page) => page?.tool === 'eraser');
 
   document.body.classList.toggle('cover-active', atCover || atBack);
   document.body.classList.toggle('back-cover-active', atBack);
   document.body.classList.toggle('spread-active', atSpread);
+  document.body.classList.toggle('eraser-active', hasEraserTool);
 
   if (atCover || atBack) {
     const base = atBack ? state.book.covers?.back : state.book.covers?.front;
@@ -284,10 +291,9 @@ async function renderCurrentPage() {
   }
 
   if (atSpread) {
-    const spread = state.pageIndex - 1;
     await Promise.all([
-      renderPage('left', pages[spread * 2] || null),
-      renderPage('right', pages[spread * 2 + 1] || null),
+      renderPage('left', leftPage),
+      renderPage('right', rightPage),
     ]);
   } else {
     await Promise.all([renderPage('left', null), renderPage('right', null)]);
@@ -314,7 +320,7 @@ function playPageTurn(direction) {
   pageTurn.classList.remove('turn-forward', 'turn-backward', 'is-active');
   void pageTurn.offsetWidth;
   pageTurn.classList.add(direction > 0 ? 'turn-forward' : 'turn-backward', 'is-active');
-  window.setTimeout(() => pageTurn.classList.remove('is-active'), 680);
+  window.setTimeout(() => pageTurn.classList.remove('is-active'), 480);
 }
 
 function playFlipSound() {
@@ -327,7 +333,7 @@ async function goToPage(nextIndex) {
   const clamped = Math.max(0, Math.min(backIndex(), nextIndex));
   if (clamped === state.pageIndex) return;
   const direction = clamped > state.pageIndex ? 1 : -1;
-  setSoundEnabled(true);
+  if (!state.soundTouched) setSoundEnabled(true);
   playFlipSound();
   playPageTurn(direction);
   state.pageIndex = clamped;
@@ -383,7 +389,14 @@ function setSoundEnabled(enabled) {
   else music.pause();
 }
 
+function enableSoundOnFirstGesture(event) {
+  if (state.soundTouched || state.soundEnabled) return;
+  if (event?.target?.closest?.('#soundButton')) return;
+  setSoundEnabled(true);
+}
+
 function toggleSound() {
+  state.soundTouched = true;
   setSoundEnabled(!state.soundEnabled);
 }
 
@@ -447,8 +460,22 @@ window.addEventListener('pointerup', () => {
   stage.classList.remove('is-erasing');
 });
 
+document.addEventListener('pointerdown', enableSoundOnFirstGesture, { capture: true });
 prevPageButton.addEventListener('click', () => goToPage(state.pageIndex - 1));
 nextPageButton.addEventListener('click', () => goToPage(state.pageIndex + 1));
+document.addEventListener('keydown', (event) => {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const target = event.target;
+  const tag = String(target?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) return;
+  if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    goToPage(state.pageIndex + 1);
+  } else if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    goToPage(state.pageIndex - 1);
+  }
+});
 resetButton.addEventListener('click', resetPages);
 fullscreenButton.addEventListener('click', toggleFullscreen);
 soundButton.addEventListener('click', toggleSound);
