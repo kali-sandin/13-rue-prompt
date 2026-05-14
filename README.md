@@ -47,13 +47,13 @@ Después abre `http://127.0.0.1:8080`.
 
 ## Controles
 
-- **Primer click en cualquier sitio**: abre el libro, suena `page-flip.mp3` y activa el cursor de goma.
+- **Primer click en cualquier sitio**: abre el libro, suena `page-flip.mp3`, activa el cursor de goma y arranca la música en loop con sonido ON.
 - **Click/arrastrar sobre una página**: borra circularmente la imagen superior y revela la página base.
 - **Reiniciar páginas**: vuelve a cubrir ambas páginas.
 - **Pantalla completa**: entra/sale de fullscreen manteniendo los botones visibles.
-- **Sonido**: activa/desactiva música de fondo y sonido de borrar.
+- **Sonido**: activa/desactiva música de fondo y sonido de borrar; tras abrir la portada queda encendido por defecto.
 
-Las zonas borradas sobreviven a fullscreen, salir de fullscreen y redimensionado; solo se restauran con **Reiniciar páginas**.
+Las zonas borradas sobreviven a fullscreen, salir de fullscreen y redimensionado; solo se restauran con **Reiniciar páginas**. El libro ocupa todo el viewport con `cover` centrado; si hay recorte por proporción de ventana, el recorte es simétrico.
 
 ## Geometría actual
 

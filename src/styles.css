@@ -4,7 +4,11 @@
   --ink: #332418;
   --control-bg: rgba(255, 247, 226, 0.9);
   --page-shadow: rgba(56, 31, 12, 0.24);
-  --eraser-size: 78px;
+  --eraser-size: 86px;
+  --book-x: 0px;
+  --book-y: 0px;
+  --book-w: 100vw;
+  --book-h: 100vh;
 }
 
 * { box-sizing: border-box; }
@@ -16,33 +20,32 @@ body {
   overflow: hidden;
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at 50% 20%, rgba(255,255,255,.28), transparent 34%),
-    linear-gradient(145deg, #b98b51 0%, #704320 52%, #321d13 100%);
+  background: #111;
 }
 
 .app {
-  min-height: 100%;
+  width: 100vw;
+  height: 100vh;
   display: grid;
   place-items: center;
-  padding: 2.2vmin;
+  padding: 0;
+  overflow: hidden;
+  background: #111;
 }
 
 .app:fullscreen {
   width: 100vw;
   height: 100vh;
-  background:
-    radial-gradient(circle at 50% 20%, rgba(255,255,255,.28), transparent 34%),
-    linear-gradient(145deg, #b98b51 0%, #704320 52%, #321d13 100%);
+  background: #111;
 }
 
 .book-stage {
   position: relative;
-  width: min(100vw, calc(100vh * 1672 / 941));
-  aspect-ratio: 1672 / 941;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  border-radius: 2.2vmin;
-  box-shadow: 0 3vmin 8vmin rgba(0, 0, 0, .42);
+  border-radius: 0;
+  box-shadow: none;
   cursor: none;
   user-select: none;
   isolation: isolate;
@@ -67,23 +70,30 @@ body.intro-active .book-stage { cursor: auto; }
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center center;
   pointer-events: none;
 }
 
 .page {
   position: absolute;
   z-index: 2;
-  top: calc(55 / 941 * 100%);
-  width: calc(666 / 1672 * 100%);
-  height: calc(868 / 941 * 100%);
+  width: calc(var(--book-w) * 666 / 1672);
+  height: calc(var(--book-h) * 868 / 941);
   border-radius: .55vmin;
   overflow: hidden;
   background: var(--paper);
   box-shadow: inset 0 0 1.35vmin rgba(255,255,255,.52), 0 .65vmin 1.3vmin var(--page-shadow);
 }
 
-.page-left { left: calc(155 / 1672 * 100%); }
-.page-right { left: calc(850 / 1672 * 100%); top: calc(35 / 941 * 100%); }
+.page-left {
+  left: calc(var(--book-x) + var(--book-w) * 155 / 1672);
+  top: calc(var(--book-y) + var(--book-h) * 55 / 941);
+}
+
+.page-right {
+  left: calc(var(--book-x) + var(--book-w) * 850 / 1672);
+  top: calc(var(--book-y) + var(--book-h) * 35 / 941);
+}
 
 .page::before {
   content: attr(aria-label);
@@ -112,7 +122,7 @@ body.intro-active .book-stage { cursor: auto; }
 
 .page-image {
   z-index: 1;
-  object-fit: cover;
+  object-fit: fill;
   background: var(--paper);
 }
 
@@ -223,12 +233,7 @@ button {
 button:hover { filter: brightness(1.04); }
 button:active { transform: translateY(1px); }
 
-@media (max-aspect-ratio: 1672 / 941) {
-  .book-stage {
-    width: 100vw;
-    height: min(100vh, calc(100vw * 941 / 1672));
-  }
-
+@media (max-width: 720px) {
   .controls {
     width: calc(100vw - 1rem);
     border-radius: 1.2rem;

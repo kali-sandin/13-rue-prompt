@@ -1,4 +1,4 @@
-const ERASER_RADIUS = 46;
+const ERASER_RADIUS = 58;
 const ERASER_INTERVAL_MS = 80;
 
 const app = document.querySelector('#app');
@@ -12,6 +12,9 @@ const eraseSound = document.querySelector('#eraseSound');
 const pageFlipSound = document.querySelector('#pageFlipSound');
 const music = document.querySelector('#music');
 const scratchLayers = [...document.querySelectorAll('.scratch-layer')];
+const BOOK_WIDTH = 1672;
+const BOOK_HEIGHT = 941;
+const BOOK_RATIO = BOOK_WIDTH / BOOK_HEIGHT;
 
 const state = {
   soundEnabled: false,
@@ -86,25 +89,8 @@ function coverFallback(ctx, width, height, label) {
   ctx.fillText(label, width / 2, height / 2);
 }
 
-function drawImageCover(ctx, image, width, height) {
-  const imageRatio = image.width / image.height;
-  const canvasRatio = width / height;
-  let drawWidth = width;
-  let drawHeight = height;
-  let x = 0;
-  let y = 0;
-
-  if (imageRatio > canvasRatio) {
-    drawHeight = height;
-    drawWidth = height * imageRatio;
-    x = (width - drawWidth) / 2;
-  } else {
-    drawWidth = width;
-    drawHeight = width / imageRatio;
-    y = (height - drawHeight) / 2;
-  }
-
-  ctx.drawImage(image, x, y, drawWidth, drawHeight);
+function drawImageFill(ctx, image, width, height) {
+  ctx.drawImage(image, 0, 0, width, height);
 }
 
 function applyErasePoint(ctx, point, width, height) {
@@ -124,7 +110,7 @@ function drawCover(canvas) {
   ctx.clearRect(0, 0, width, height);
 
   if (layer.coverImage) {
-    drawImageCover(ctx, layer.coverImage, width, height);
+    drawImageFill(ctx, layer.coverImage, width, height);
   } else {
     coverFallback(ctx, width, height, canvas.closest('.page-left') ? 'PORTADA IZQ.' : 'PORTADA DCHA.');
   }
@@ -135,8 +121,31 @@ function drawCover(canvas) {
   ctx.restore();
 }
 
+function updateBookGeometry() {
+  const rect = stage.getBoundingClientRect();
+  const viewportRatio = rect.width / rect.height;
+  let bookWidth = rect.width;
+  let bookHeight = rect.height;
+
+  if (viewportRatio > BOOK_RATIO) {
+    bookWidth = rect.width;
+    bookHeight = rect.width / BOOK_RATIO;
+  } else {
+    bookHeight = rect.height;
+    bookWidth = rect.height * BOOK_RATIO;
+  }
+
+  const bookX = (rect.width - bookWidth) / 2;
+  const bookY = (rect.height - bookHeight) / 2;
+  stage.style.setProperty('--book-x', `${bookX}px`);
+  stage.style.setProperty('--book-y', `${bookY}px`);
+  stage.style.setProperty('--book-w', `${bookWidth}px`);
+  stage.style.setProperty('--book-h', `${bookHeight}px`);
+}
+
 function resizeLayer(canvas) {
   if (!state.layers.has(canvas)) return;
+  updateBookGeometry();
   const rect = canvas.getBoundingClientRect();
   canvas.width = Math.max(1, Math.round(rect.width));
   canvas.height = Math.max(1, Math.round(rect.height));
@@ -185,28 +194,34 @@ function updateCursor(event) {
   cursor.style.top = `${event.clientY}px`;
 }
 
+function setSoundEnabled(enabled) {
+  state.soundEnabled = enabled;
+  soundButton.setAttribute('aria-pressed', String(state.soundEnabled));
+  soundButton.textContent = `Sonido: ${state.soundEnabled ? 'on' : 'off'}`;
+
+  music.volume = 0.42;
+  eraseSound.volume = 0.7;
+  pageFlipSound.volume = 0.8;
+
+  if (state.soundEnabled) {
+    music.play().catch(() => {});
+  } else {
+    music.pause();
+  }
+}
+
 function openIntro() {
   if (state.introOpen) return;
   state.introOpen = true;
   document.body.classList.remove('intro-active');
   introCover.classList.add('is-hidden');
+  setSoundEnabled(true);
   pageFlipSound.currentTime = 0;
   pageFlipSound.play().catch(() => {});
 }
 
-async function toggleSound() {
-  state.soundEnabled = !state.soundEnabled;
-  soundButton.setAttribute('aria-pressed', String(state.soundEnabled));
-  soundButton.textContent = `Sonido: ${state.soundEnabled ? 'on' : 'off'}`;
-
-  if (state.soundEnabled) {
-    music.volume = 0.42;
-    eraseSound.volume = 0.7;
-    pageFlipSound.volume = 0.8;
-    await music.play().catch(() => {});
-  } else {
-    music.pause();
-  }
+function toggleSound() {
+  setSoundEnabled(!state.soundEnabled);
 }
 
 async function toggleFullscreen() {
@@ -230,13 +245,16 @@ function resetPages() {
 }
 
 async function init() {
+  updateBookGeometry();
   await setupResponsiveImages();
   await Promise.all(scratchLayers.map((canvas) => setupLayer(canvas)));
 }
 
-const resizeObserver = new ResizeObserver((entries) => {
-  for (const entry of entries) resizeLayer(entry.target);
+const resizeObserver = new ResizeObserver(() => {
+  updateBookGeometry();
+  scratchLayers.forEach((canvas) => resizeLayer(canvas));
 });
+resizeObserver.observe(stage);
 scratchLayers.forEach((canvas) => resizeObserver.observe(canvas));
 
 stage.addEventListener('pointermove', (event) => {
