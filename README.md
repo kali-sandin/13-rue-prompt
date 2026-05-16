@@ -11,31 +11,39 @@ Libro de cómic interactivo para TheOffice: una portada inicial ocupa toda la pa
 
 ## Dónde copiar las imágenes y sonidos
 
-El código intenta cargar primero `.jpg`; si no existe, usa `.png` como fallback transparente para el usuario.
+La carga con intento `.jpg` y fallback `.png` está limitada a:
+
+- portada inicial (`assets/book/cover`)
+- contraportada/final (`assets/book/cover-back`)
+- imágenes base de contenido de página (`assets/pages/*-base`)
+
+El libro abierto, las capas superiores borrables de cada página y los recursos de UI se cargan como PNG directo.
 
 ```text
 assets/book/cover.jpg            # portada inicial a pantalla completa
 assets/book/cover.png            # fallback de portada inicial
-assets/book/book-open.jpg        # libro abierto en blanco, fondo 1672x941 recomendado
-assets/book/book-open.png        # fallback del libro abierto
+assets/book/cover-back.jpg       # contraportada / final
+assets/book/cover-back.png       # fallback de contraportada
+assets/book/book-open.png        # libro abierto en blanco, fondo 1672x941 recomendado
 
 assets/pages/left-base.jpg       # contenido oculto página izquierda, vertical
 assets/pages/left-base.png       # fallback
 assets/pages/right-base.jpg      # contenido oculto página derecha, vertical
 assets/pages/right-base.png      # fallback
-assets/pages/left-cover.jpg      # capa superior borrable izquierda, vertical
-assets/pages/left-cover.png      # fallback
-assets/pages/right-cover.jpg     # capa superior borrable derecha, vertical
-assets/pages/right-cover.png     # fallback
+assets/pages/left-cover.png      # capa superior borrable izquierda, siempre PNG
+assets/pages/right-cover.png     # capa superior borrable derecha, siempre PNG
+assets/pages/Ibañez.jpg          # imagen homenaje final
+assets/pages/mortadelo.png       # imagen pequeña final, abajo derecha
 
-assets/ui/eraser.png             # cursor personalizado de goma, con transparencia
+assets/ui/eraser.png             # cursor/botón goma
+assets/ui/moneda.png             # cursor/botón moneda
 
 assets/audio/page-flip.mp3       # sonido del primer click / paso de página
-assets/audio/erase.mp3           # sonido corto de borrar
+assets/audio/erase.mp3           # sonido corto de borrar / arañar
 assets/audio/music.mp3           # música de fondo en loop
 ```
 
-El repo trae placeholders para probar la mecánica; sobrescríbelos con los assets definitivos usando esos nombres.
+Al iniciar se precargan portada, contraportada, libro abierto y las primeras dos páginas con sus capas superiores para evitar saltos visuales al abrir/pasar página.
 
 ## Uso local
 

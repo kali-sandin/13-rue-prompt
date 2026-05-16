@@ -1,12 +1,17 @@
-const ERASER_RADIUS = 58;
+const ERASER_RADIUS = 50;
+const COIN_RADIUS_X = 42;
+const COIN_RADIUS_Y = 7;
 const ERASER_INTERVAL_MS = 80;
 const BOOK_WIDTH = 1672;
 const BOOK_HEIGHT = 941;
 const BOOK_RATIO = BOOK_WIDTH / BOOK_HEIGHT;
+const MONOCLE_ZOOM = 2.15;
+const MONOCLE_SIZE = 190;
 
 const app = document.querySelector('#app');
 const stage = document.querySelector('#bookStage');
-const cursor = document.querySelector('#rubberCursor');
+const cursor = document.querySelector('#toolCursor');
+const magnifierLens = document.querySelector('#magnifierLens');
 const bookBackground = document.querySelector('#bookBackground');
 const coverScreen = document.querySelector('#coverScreen');
 const coverImage = document.querySelector('#coverImage');
@@ -20,6 +25,8 @@ const soundButton = document.querySelector('#soundButton');
 const eraseSound = document.querySelector('#eraseSound');
 const pageFlipSound = document.querySelector('#pageFlipSound');
 const music = document.querySelector('#music');
+const finalTribute = document.querySelector('#finalTribute');
+const toolButtons = [...document.querySelectorAll('.tool-button')];
 const pageEls = {
   left: document.querySelector('#leftPage'),
   right: document.querySelector('#rightPage'),
@@ -38,6 +45,7 @@ const FALLBACK_BOOK = {
 const state = {
   book: FALLBACK_BOOK,
   pageIndex: 0,
+  activeTool: 'eraser',
   soundEnabled: false,
   soundTouched: false,
   isPointerDown: false,
@@ -46,10 +54,12 @@ const state = {
   imageCache: new Map(),
 };
 
-function imageCandidates(base) {
+function imageCandidates(base, kind = 'exact') {
   if (!base) return [];
   if (/\.(png|jpe?g|webp|gif)$/i.test(base)) return [base];
-  return [`${base}.jpg`, `${base}.png`, `${base}.webp`];
+  if (kind === 'jpg-png') return [`${base}.jpg`, `${base}.png`];
+  if (kind === 'png') return [`${base}.png`];
+  return [base];
 }
 
 function audioCandidates(base) {
@@ -65,19 +75,20 @@ function loadImage(src) {
   });
 }
 
-async function firstExistingImage(base) {
-  if (state.imageCache.has(base)) return state.imageCache.get(base);
-  for (const src of imageCandidates(base)) {
+async function firstExistingImage(base, kind = 'exact') {
+  const cacheKey = `${kind}:${base}`;
+  if (state.imageCache.has(cacheKey)) return state.imageCache.get(cacheKey);
+  for (const src of imageCandidates(base, kind)) {
     try {
       const result = { src, image: await loadImage(src) };
-      state.imageCache.set(base, result);
+      state.imageCache.set(cacheKey, result);
       return result;
     } catch {
-      // Try next extension.
+      // Try next candidate.
     }
   }
   const empty = { src: null, image: null };
-  state.imageCache.set(base, empty);
+  state.imageCache.set(cacheKey, empty);
   return empty;
 }
 
@@ -94,6 +105,10 @@ function spreadCount() {
   return Math.max(1, Math.ceil(sortedPages(state.book).length / 2));
 }
 
+function finalBlankIndex() {
+  return spreadCount() + 1;
+}
+
 function backIndex() {
   // Índice 0 = portada; 1..N = pliegos reales; N+1 = pliego vacío final; N+2 = contraportada.
   return spreadCount() + 2;
@@ -103,23 +118,39 @@ function pageAsset(page, key) {
   return page && typeof page[key] === 'string' ? page[key] : '';
 }
 
-async function setImageFromBase(img, base) {
-  const { src } = await firstExistingImage(base);
+async function setImageFromBase(img, base, kind = 'exact') {
+  const { src } = await firstExistingImage(base, kind);
   if (src) img.src = src;
   else img.removeAttribute('src');
 }
 
+async function preloadInitialImages() {
+  const pages = sortedPages(state.book).slice(0, 2);
+  const jobs = [
+    firstExistingImage(state.book.covers?.front || FALLBACK_BOOK.covers.front, 'jpg-png'),
+    firstExistingImage(state.book.covers?.back || FALLBACK_BOOK.covers.back, 'jpg-png'),
+    firstExistingImage(state.book.covers?.open || FALLBACK_BOOK.covers.open, 'png'),
+  ];
+  for (const page of pages) {
+    jobs.push(firstExistingImage(pageAsset(page, 'base'), 'jpg-png'));
+    jobs.push(firstExistingImage(pageAsset(page, 'cover'), 'png'));
+  }
+  await Promise.allSettled(jobs);
+}
+
 async function setupStaticAssets() {
-  await setImageFromBase(bookBackground, state.book.covers?.open || FALLBACK_BOOK.covers.open);
+  await setImageFromBase(bookBackground, state.book.covers?.open || FALLBACK_BOOK.covers.open, 'png');
   await Promise.all([eraseSound, pageFlipSound, music].map(async (audio) => {
     const [src] = audioCandidates(audio.dataset.audioBase);
     audio.src = src;
   }));
 
-  const eraser = await firstExistingImage('assets/ui/eraser');
-  if (eraser.src) {
-    document.documentElement.style.setProperty('--eraser-image', `url("../${eraser.src}")`);
-  }
+  const [eraser, coin] = await Promise.all([
+    firstExistingImage('assets/ui/eraser', 'png'),
+    firstExistingImage('assets/ui/moneda', 'png'),
+  ]);
+  if (eraser.src) document.documentElement.style.setProperty('--eraser-image', `url("../${eraser.src}")`);
+  if (coin.src) document.documentElement.style.setProperty('--coin-image', `url("../${coin.src}")`);
 }
 
 async function loadBook() {
@@ -163,16 +194,52 @@ function drawImageFill(ctx, image, width, height) {
 }
 
 function applyErasePoint(ctx, point, width, height) {
+  if (point.tool === 'coin') {
+    const x = point.x * width;
+    const y = point.y * height;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-Math.PI / 4);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, point.rx * Math.min(width, height), point.ry * Math.min(width, height), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
   const radius = point.radius * Math.min(width, height);
   ctx.beginPath();
   ctx.arc(point.x * width, point.y * height, radius, 0, Math.PI * 2);
   ctx.fill();
 }
 
+function applyScratchMark(ctx, mark, width, height) {
+  const x = mark.x * width;
+  const y = mark.y * height;
+  const len = mark.rx * Math.min(width, height) * 2.3;
+  const thick = Math.max(1.4, mark.ry * Math.min(width, height));
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-Math.PI / 4);
+  ctx.lineCap = 'round';
+  ctx.lineWidth = thick;
+  ctx.strokeStyle = 'rgba(46, 29, 16, .38)';
+  ctx.beginPath();
+  ctx.moveTo(-len / 2, 0);
+  ctx.lineTo(len / 2, 0);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1, thick * .34);
+  ctx.strokeStyle = 'rgba(255, 247, 223, .55)';
+  ctx.beginPath();
+  ctx.moveTo(-len * .42, -thick * .9);
+  ctx.lineTo(len * .36, thick * .55);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function layerForPage(page) {
   if (!page?.id) return null;
   if (!state.layerState.has(page.id)) {
-    state.layerState.set(page.id, { coverImage: null, coverLoadedFor: '', erasePoints: [] });
+    state.layerState.set(page.id, { coverImage: null, coverLoadedFor: '', erasePoints: [], scratchMarks: [] });
   }
   return state.layerState.get(page.id);
 }
@@ -182,7 +249,7 @@ async function ensureLayerCover(page) {
   if (!layer) return null;
   const cover = pageAsset(page, 'cover');
   if (layer.coverLoadedFor !== cover) {
-    const { image } = await firstExistingImage(cover);
+    const { image } = await firstExistingImage(cover, 'png');
     layer.coverImage = image;
     layer.coverLoadedFor = cover;
   }
@@ -198,9 +265,9 @@ function drawCover(canvas) {
 
   ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, width, height);
-  if (!page || page.tool !== 'eraser') return;
+  if (!page || !layer) return;
 
-  if (layer?.coverImage) {
+  if (layer.coverImage) {
     drawImageFill(ctx, layer.coverImage, width, height);
   } else {
     coverFallback(ctx, width, height, page.title || 'CUBIERTA');
@@ -209,6 +276,11 @@ function drawCover(canvas) {
   ctx.save();
   ctx.globalCompositeOperation = 'destination-out';
   for (const point of layer.erasePoints) applyErasePoint(ctx, point, width, height);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  for (const mark of layer.scratchMarks) applyScratchMark(ctx, mark, width, height);
   ctx.restore();
 }
 
@@ -279,7 +351,7 @@ async function renderPage(side, page) {
     return;
   }
 
-  await setImageFromBase(img, pageAsset(page, 'base'));
+  await setImageFromBase(img, pageAsset(page, 'base'), 'jpg-png');
   await ensureLayerCover(page);
   resizeCanvas(canvas);
 }
@@ -290,19 +362,22 @@ async function renderCurrentPage() {
   const atCover = state.pageIndex === 0;
   const atBack = state.pageIndex === backIndex();
   const atSpread = !atCover && !atBack;
+  const atFinalBlank = state.pageIndex === finalBlankIndex();
   const spread = atSpread ? state.pageIndex - 1 : -1;
   const leftPage = atSpread ? (pages[spread * 2] || null) : null;
   const rightPage = atSpread ? (pages[spread * 2 + 1] || null) : null;
-  const hasEraserTool = [leftPage, rightPage].some((page) => page?.tool === 'eraser');
 
   document.body.classList.toggle('cover-active', atCover || atBack);
   document.body.classList.toggle('back-cover-active', atBack);
   document.body.classList.toggle('spread-active', atSpread);
-  document.body.classList.toggle('eraser-active', hasEraserTool);
+  document.body.classList.toggle('final-tribute-active', atFinalBlank);
+  document.body.classList.toggle('tool-eraser', state.activeTool === 'eraser');
+  document.body.classList.toggle('tool-coin', state.activeTool === 'coin');
+  document.body.classList.toggle('tool-monocle', state.activeTool === 'monocle');
 
   if (atCover || atBack) {
     const base = atBack ? state.book.covers?.back : state.book.covers?.front;
-    await setImageFromBase(coverImage, base || FALLBACK_BOOK.covers.front);
+    await setImageFromBase(coverImage, base || FALLBACK_BOOK.covers.front, 'jpg-png');
   }
 
   if (atSpread) {
@@ -312,6 +387,11 @@ async function renderCurrentPage() {
     ]);
   } else {
     await Promise.all([renderPage('left', null), renderPage('right', null)]);
+  }
+
+  if (finalTribute) {
+    const mortadelo = finalTribute.querySelector('.tribute-mortadelo');
+    if (mortadelo) mortadelo.hidden = false;
   }
 
   prevPageButton.disabled = state.pageIndex === 0;
@@ -355,9 +435,13 @@ async function goToPage(nextIndex) {
   await renderCurrentPage();
 }
 
-function eraseAt(canvas, clientX, clientY) {
+function activeToolMatches(page) {
+  return page?.tool === state.activeTool;
+}
+
+function applyToolAt(canvas, clientX, clientY) {
   const page = canvas.closest('.page')?.__pageData;
-  if (!page || page.tool !== 'eraser') return;
+  if (!page || state.activeTool === 'monocle') return;
 
   const rect = canvas.getBoundingClientRect();
   const x = clientX - rect.left;
@@ -365,11 +449,21 @@ function eraseAt(canvas, clientX, clientY) {
   if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
 
   const layer = layerForPage(page);
-  layer.erasePoints.push({
-    x: x / rect.width,
-    y: y / rect.height,
-    radius: ERASER_RADIUS / Math.min(rect.width, rect.height),
-  });
+  const normalized = { x: x / rect.width, y: y / rect.height };
+  const minSide = Math.min(rect.width, rect.height);
+
+  if (activeToolMatches(page)) {
+    if (state.activeTool === 'coin') {
+      layer.erasePoints.push({ ...normalized, tool: 'coin', rx: COIN_RADIUS_X / minSide, ry: COIN_RADIUS_Y / minSide });
+    } else if (state.activeTool === 'eraser') {
+      layer.erasePoints.push({ ...normalized, tool: 'eraser', radius: ERASER_RADIUS / minSide });
+    }
+  } else if (state.activeTool === 'coin') {
+    layer.scratchMarks.push({ ...normalized, tool: 'coin', rx: COIN_RADIUS_X / minSide, ry: COIN_RADIUS_Y / minSide });
+  } else {
+    return;
+  }
+
   drawCover(canvas);
 
   const now = performance.now();
@@ -380,15 +474,72 @@ function eraseAt(canvas, clientX, clientY) {
   }
 }
 
-function eraseFromPointer(event) {
+function toolFromPointer(event) {
   const targetCanvas = event.target.closest?.('.scratch-layer');
   if (!targetCanvas) return;
-  eraseAt(targetCanvas, event.clientX, event.clientY);
+  applyToolAt(targetCanvas, event.clientX, event.clientY);
 }
 
 function updateCursor(event) {
   cursor.style.left = `${event.clientX}px`;
   cursor.style.top = `${event.clientY}px`;
+  if (state.activeTool === 'monocle') updateMagnifier(event);
+}
+
+function pageCompositeDataUrl(pageEl) {
+  const base = pageEl.querySelector('.page-base');
+  const layer = pageEl.querySelector('.scratch-layer');
+  const width = layer.width || Math.round(pageEl.getBoundingClientRect().width);
+  const height = layer.height || Math.round(pageEl.getBoundingClientRect().height);
+  if (!width || !height) return '';
+  const buffer = document.createElement('canvas');
+  buffer.width = width;
+  buffer.height = height;
+  const ctx = buffer.getContext('2d');
+  ctx.fillStyle = '#fbf3df';
+  ctx.fillRect(0, 0, width, height);
+  if (base?.complete && base.naturalWidth) ctx.drawImage(base, 0, 0, width, height);
+  ctx.drawImage(layer, 0, 0, width, height);
+  return buffer.toDataURL('image/png');
+}
+
+function updateMagnifier(event) {
+  if (!document.body.classList.contains('spread-active')) return;
+  magnifierLens.style.left = `${event.clientX}px`;
+  magnifierLens.style.top = `${event.clientY}px`;
+  magnifierLens.style.width = `${MONOCLE_SIZE}px`;
+  magnifierLens.style.height = `${MONOCLE_SIZE}px`;
+
+  const pageEl = event.target.closest?.('.page');
+  if (pageEl && !pageEl.classList.contains('is-empty')) {
+    const pageRect = pageEl.getBoundingClientRect();
+    const x = event.clientX - pageRect.left;
+    const y = event.clientY - pageRect.top;
+    const composite = pageCompositeDataUrl(pageEl);
+    magnifierLens.style.backgroundImage = composite ? `url("${composite}")` : 'none';
+    magnifierLens.style.backgroundSize = `${pageRect.width * MONOCLE_ZOOM}px ${pageRect.height * MONOCLE_ZOOM}px`;
+    magnifierLens.style.backgroundPosition = `${-(x * MONOCLE_ZOOM - MONOCLE_SIZE / 2)}px ${-(y * MONOCLE_ZOOM - MONOCLE_SIZE / 2)}px`;
+    return;
+  }
+
+  const stageRect = stage.getBoundingClientRect();
+  const x = event.clientX - stageRect.left;
+  const y = event.clientY - stageRect.top;
+  magnifierLens.style.backgroundImage = `url("${bookBackground.currentSrc || bookBackground.src}")`;
+  magnifierLens.style.backgroundSize = `${stageRect.width * MONOCLE_ZOOM}px ${stageRect.height * MONOCLE_ZOOM}px`;
+  magnifierLens.style.backgroundPosition = `${-(x * MONOCLE_ZOOM - MONOCLE_SIZE / 2)}px ${-(y * MONOCLE_ZOOM - MONOCLE_SIZE / 2)}px`;
+}
+
+function setActiveTool(tool) {
+  state.activeTool = tool;
+  for (const button of toolButtons) {
+    const active = button.dataset.tool === tool;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+  document.body.classList.toggle('tool-eraser', tool === 'eraser');
+  document.body.classList.toggle('tool-coin', tool === 'coin');
+  document.body.classList.toggle('tool-monocle', tool === 'monocle');
 }
 
 function setSoundEnabled(enabled) {
@@ -427,6 +578,7 @@ function updateFullscreenLabel() {
 function resetPages() {
   for (const layer of state.layerState.values()) {
     layer.erasePoints = [];
+    layer.scratchMarks = [];
   }
   for (const canvas of document.querySelectorAll('.scratch-layer')) drawCover(canvas);
 }
@@ -442,7 +594,9 @@ function escapeHtml(value) {
 
 async function init() {
   updateBookGeometry();
+  setActiveTool('eraser');
   await loadBook();
+  await preloadInitialImages();
   await setupStaticAssets();
   await renderCurrentPage();
   updateFullscreenLabel();
@@ -457,17 +611,17 @@ Object.values(pageEls).forEach((el) => resizeObserver.observe(el));
 
 stage.addEventListener('pointermove', (event) => {
   updateCursor(event);
-  if (state.isPointerDown) eraseFromPointer(event);
+  if (state.isPointerDown) toolFromPointer(event);
 });
 
 stage.addEventListener('pointerdown', (event) => {
   if (!document.body.classList.contains('spread-active')) return;
   const targetCanvas = event.target.closest?.('.scratch-layer');
-  if (!targetCanvas) return;
+  if (!targetCanvas && state.activeTool !== 'monocle') return;
   state.isPointerDown = true;
   stage.classList.add('is-erasing');
   event.target.setPointerCapture?.(event.pointerId);
-  eraseFromPointer(event);
+  toolFromPointer(event);
 });
 
 window.addEventListener('pointerup', () => {
@@ -494,6 +648,8 @@ document.addEventListener('keydown', (event) => {
 resetButton.addEventListener('click', resetPages);
 fullscreenButton.addEventListener('click', toggleFullscreen);
 soundButton.addEventListener('click', toggleSound);
+toolButtons.forEach((button) => button.addEventListener('click', () => setActiveTool(button.dataset.tool || 'eraser')));
 document.addEventListener('fullscreenchange', updateFullscreenLabel);
+finalTribute?.querySelector('.tribute-mortadelo')?.addEventListener('error', (event) => { event.currentTarget.hidden = true; });
 
 init();

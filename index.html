@@ -24,6 +24,11 @@
 
       <article class="page page-right" id="rightPage" aria-label="Página derecha">
         <img class="page-image page-base" alt="Contenido oculto de la página derecha" />
+        <div class="final-tribute" id="finalTribute" aria-label="Homenaje a Francisco Ibáñez">
+          <img class="tribute-ibanez" src="assets/pages/Ibañez.jpg" alt="Francisco Ibáñez" />
+          <p>Homenaje a Francisco Ibañez (1936-2023)<br />Gracias por darnos esos momentos de nuestra infancia.</p>
+          <img class="tribute-mortadelo" src="assets/pages/mortadelo.png" alt="Mortadelo" />
+        </div>
         <canvas class="scratch-layer" aria-label="Capa borrable derecha"></canvas>
         <button class="info-button info-right" type="button" aria-label="Información de la página derecha">i</button>
         <aside class="info-popover" role="tooltip"></aside>
@@ -37,13 +42,31 @@
         <img alt="" />
       </div>
 
-      <div class="rubber-cursor" id="rubberCursor" aria-hidden="true"></div>
+      <div class="tool-cursor" id="toolCursor" aria-hidden="true"></div>
+      <div class="magnifier-lens" id="magnifierLens" aria-hidden="true"></div>
     </section>
 
     <nav class="controls" aria-label="Controles">
       <button type="button" id="fullscreenButton">Maximizar</button>
       <button type="button" id="resetButton">Reiniciar páginas</button>
       <button type="button" id="soundButton" aria-pressed="false">Sonido: off</button>
+      <section class="toolbox" aria-label="Herramientas">
+        <div class="toolbox-title">Herramientas</div>
+        <div class="toolbox-buttons" role="group" aria-label="Herramientas de página">
+          <button class="tool-button is-active" type="button" data-tool="eraser" aria-pressed="true" title="Goma de borrar">
+            <img src="assets/ui/eraser.png" alt="" />
+            <span>Goma</span>
+          </button>
+          <button class="tool-button" type="button" data-tool="coin" aria-pressed="false" title="Moneda">
+            <img src="assets/ui/moneda.png" alt="" />
+            <span>Moneda</span>
+          </button>
+          <button class="tool-button" type="button" data-tool="monocle" aria-pressed="false" title="Monóculo">
+            <span class="tool-emoji" aria-hidden="true">🧐</span>
+            <span>Monóculo</span>
+          </button>
+        </div>
+      </section>
     </nav>
   </main>
 
