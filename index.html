@@ -5,15 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>13 Rue del Prompt</title>
   <meta name="description" content="Libro interactivo de cómic con páginas borrables." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="src/styles.css" />
 </head>
-<body>
+<body class="is-loading">
   <main class="app" id="app" aria-label="13 Rue del Prompt">
     <section class="book-stage" id="bookStage">
       <img class="book-background" id="bookBackground" alt="Libro abierto" />
 
       <button class="nav-arrow nav-prev" id="prevPageButton" type="button" aria-label="Página anterior">&lt;</button>
       <button class="nav-arrow nav-next" id="nextPageButton" type="button" aria-label="Página siguiente">&gt;</button>
+      <nav class="page-index" id="pageIndex" aria-label="Índice de páginas"></nav>
 
       <article class="page page-left" id="leftPage" aria-label="Página izquierda">
         <img class="page-image page-base" alt="Contenido oculto de la página izquierda" />
@@ -25,8 +29,14 @@
       <article class="page page-right" id="rightPage" aria-label="Página derecha">
         <img class="page-image page-base" alt="Contenido oculto de la página derecha" />
         <div class="final-tribute" id="finalTribute" aria-label="Homenaje a Francisco Ibáñez">
-          <img class="tribute-ibanez" src="assets/pages/Ibañez.jpg" alt="Francisco Ibáñez" />
-          <p>Homenaje a Francisco Ibañez (1936-2023)<br />Gracias por darnos esos momentos de nuestra infancia.</p>
+          <div class="tribute-photo" aria-label="Francisco Ibáñez">
+            <img class="tribute-ibanez" src="assets/pages/Ibañez.jpg" alt="Francisco Ibáñez" />
+            <span class="tape tape-top-left" aria-hidden="true"></span>
+            <span class="tape tape-top-right" aria-hidden="true"></span>
+            <span class="tape tape-bottom-left" aria-hidden="true"></span>
+            <span class="tape tape-bottom-right" aria-hidden="true"></span>
+          </div>
+          <p><span>Homenaje a Francisco Ibáñez (1936-2023)</span><span>Gracias por darnos esos momentos de nuestra infancia.</span></p>
           <img class="tribute-mortadelo" src="assets/pages/mortadelo.png" alt="Mortadelo" />
         </div>
         <canvas class="scratch-layer" aria-label="Capa borrable derecha"></canvas>
@@ -47,9 +57,9 @@
     </section>
 
     <nav class="controls" aria-label="Controles">
-      <button type="button" id="fullscreenButton">Maximizar</button>
-      <button type="button" id="resetButton">Reiniciar páginas</button>
-      <button type="button" id="soundButton" aria-pressed="false">Sonido: off</button>
+      <button type="button" id="fullscreenButton" class="control-icon" aria-label="Maximizar" title="Maximizar">⛶</button>
+      <button type="button" id="resetButton" class="control-icon" aria-label="Reiniciar páginas" title="Reiniciar páginas">↺</button>
+      <button type="button" id="soundButton" class="control-icon" aria-label="Sonido desactivado" title="Sonido" aria-pressed="false">🔇</button>
       <section class="toolbox" aria-label="Herramientas">
         <div class="toolbox-title">Herramientas</div>
         <div class="toolbox-buttons" role="group" aria-label="Herramientas de página">
@@ -61,6 +71,10 @@
             <img src="assets/ui/moneda.png" alt="" />
             <span>Moneda</span>
           </button>
+          <button class="tool-button" type="button" data-tool="pencil" aria-pressed="false" title="Lápiz">
+            <img src="assets/ui/lapiz.png" alt="" />
+            <span>Lápiz</span>
+          </button>
           <button class="tool-button" type="button" data-tool="monocle" aria-pressed="false" title="Monóculo">
             <span class="tool-emoji" aria-hidden="true">🧐</span>
             <span>Monóculo</span>
@@ -71,6 +85,7 @@
   </main>
 
   <audio id="eraseSound" data-audio-base="assets/audio/erase" preload="auto"></audio>
+  <audio id="pencilSound" data-audio-base="assets/audio/lapiz" preload="auto"></audio>
   <audio id="pageFlipSound" data-audio-base="assets/audio/page-flip" preload="auto"></audio>
   <audio id="music" data-audio-base="assets/audio/music" preload="auto" loop></audio>
 

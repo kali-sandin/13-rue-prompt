@@ -2,11 +2,14 @@ const ERASER_RADIUS = 50;
 const COIN_RADIUS_X = 42;
 const COIN_RADIUS_Y = 7;
 const ERASER_INTERVAL_MS = 80;
+const PENCIL_INTERVAL_MS = 55;
 const BOOK_WIDTH = 1672;
 const BOOK_HEIGHT = 941;
 const BOOK_RATIO = BOOK_WIDTH / BOOK_HEIGHT;
 const MONOCLE_ZOOM = 2.15;
-const MONOCLE_SIZE = 190;
+const MONOCLE_SIZE = 760;
+const PENCIL_TIP_OFFSET_X = 10;
+const PENCIL_TIP_OFFSET_Y = -10;
 
 const app = document.querySelector('#app');
 const stage = document.querySelector('#bookStage');
@@ -23,14 +26,19 @@ const resetButton = document.querySelector('#resetButton');
 const fullscreenButton = document.querySelector('#fullscreenButton');
 const soundButton = document.querySelector('#soundButton');
 const eraseSound = document.querySelector('#eraseSound');
+const pencilSound = document.querySelector('#pencilSound');
 const pageFlipSound = document.querySelector('#pageFlipSound');
 const music = document.querySelector('#music');
 const finalTribute = document.querySelector('#finalTribute');
+const pageIndex = document.querySelector('#pageIndex');
 const toolButtons = [...document.querySelectorAll('.tool-button')];
 const pageEls = {
   left: document.querySelector('#leftPage'),
   right: document.querySelector('#rightPage'),
 };
+
+const FINAL_LEFT_PAGE = { id: '__final_left__', title: 'Página final', tool: 'eraser', virtual: true };
+const FINAL_RIGHT_PAGE = { id: '__final_right__', title: 'Homenaje', tool: 'eraser', virtual: true };
 
 const FALLBACK_BOOK = {
   title: '13 Rue del Prompt',
@@ -45,11 +53,13 @@ const FALLBACK_BOOK = {
 const state = {
   book: FALLBACK_BOOK,
   pageIndex: 0,
+  indexRenderedFor: '',
   activeTool: 'eraser',
   soundEnabled: false,
   soundTouched: false,
   isPointerDown: false,
   lastEraseAt: 0,
+  lastPencilAt: 0,
   layerState: new Map(),
   imageCache: new Map(),
 };
@@ -129,7 +139,7 @@ async function preloadInitialImages() {
   const jobs = [
     firstExistingImage(state.book.covers?.front || FALLBACK_BOOK.covers.front, 'jpg-png'),
     firstExistingImage(state.book.covers?.back || FALLBACK_BOOK.covers.back, 'jpg-png'),
-    firstExistingImage(state.book.covers?.open || FALLBACK_BOOK.covers.open, 'png'),
+    firstExistingImage(state.book.covers?.open || FALLBACK_BOOK.covers.open, 'jpg-png'),
   ];
   for (const page of pages) {
     jobs.push(firstExistingImage(pageAsset(page, 'base'), 'jpg-png'));
@@ -139,18 +149,20 @@ async function preloadInitialImages() {
 }
 
 async function setupStaticAssets() {
-  await setImageFromBase(bookBackground, state.book.covers?.open || FALLBACK_BOOK.covers.open, 'png');
-  await Promise.all([eraseSound, pageFlipSound, music].map(async (audio) => {
+  await setImageFromBase(bookBackground, state.book.covers?.open || FALLBACK_BOOK.covers.open, 'jpg-png');
+  await Promise.all([eraseSound, pencilSound, pageFlipSound, music].map(async (audio) => {
     const [src] = audioCandidates(audio.dataset.audioBase);
     audio.src = src;
   }));
 
-  const [eraser, coin] = await Promise.all([
+  const [eraser, coin, pencil] = await Promise.all([
     firstExistingImage('assets/ui/eraser', 'png'),
     firstExistingImage('assets/ui/moneda', 'png'),
+    firstExistingImage('assets/ui/lapiz', 'png'),
   ]);
   if (eraser.src) document.documentElement.style.setProperty('--eraser-image', `url("../${eraser.src}")`);
   if (coin.src) document.documentElement.style.setProperty('--coin-image', `url("../${coin.src}")`);
+  if (pencil.src) document.documentElement.style.setProperty('--pencil-image', `url("../${pencil.src}")`);
 }
 
 async function loadBook() {
@@ -236,10 +248,57 @@ function applyScratchMark(ctx, mark, width, height) {
   ctx.restore();
 }
 
+function applyPencilMark(ctx, mark, width, height) {
+  const minSide = Math.min(width, height);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(1.6, mark.size * minSide);
+  ctx.strokeStyle = 'rgba(35, 29, 24, .82)';
+  ctx.beginPath();
+  ctx.moveTo(mark.fromX * width, mark.fromY * height);
+  ctx.lineTo(mark.x * width, mark.y * height);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(.65, mark.size * minSide * .26);
+  ctx.strokeStyle = 'rgba(255, 255, 255, .24)';
+  ctx.beginPath();
+  ctx.moveTo(mark.fromX * width, mark.fromY * height);
+  ctx.lineTo(mark.x * width, mark.y * height);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function invalidateLayerComposite(layer) {
+  if (!layer) return;
+  layer.version += 1;
+  layer.compositeVersion = -1;
+  if (layer.compositeUrl?.startsWith('blob:')) URL.revokeObjectURL(layer.compositeUrl);
+  layer.compositeUrl = '';
+}
+
+function applyMarkDirect(canvas, layer, type, mark) {
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  if (!ctx || !width || !height) return;
+
+  ctx.save();
+  if (type === 'erase') {
+    ctx.globalCompositeOperation = 'destination-out';
+    applyErasePoint(ctx, mark, width, height);
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    if (type === 'scratch') applyScratchMark(ctx, mark, width, height);
+    if (type === 'pencil') applyPencilMark(ctx, mark, width, height);
+  }
+  ctx.restore();
+  invalidateLayerComposite(layer);
+}
+
 function layerForPage(page) {
   if (!page?.id) return null;
   if (!state.layerState.has(page.id)) {
-    state.layerState.set(page.id, { coverImage: null, coverLoadedFor: '', erasePoints: [], scratchMarks: [] });
+    state.layerState.set(page.id, { coverImage: null, coverLoadedFor: '', erasePoints: [], scratchMarks: [], pencilMarks: [], version: 0, compositeVersion: -1, compositeUrl: '' });
   }
   return state.layerState.get(page.id);
 }
@@ -252,6 +311,7 @@ async function ensureLayerCover(page) {
     const { image } = await firstExistingImage(cover, 'png');
     layer.coverImage = image;
     layer.coverLoadedFor = cover;
+    invalidateLayerComposite(layer);
   }
   return layer;
 }
@@ -269,9 +329,14 @@ function drawCover(canvas) {
 
   if (layer.coverImage) {
     drawImageFill(ctx, layer.coverImage, width, height);
-  } else {
+  } else if (!page.virtual) {
     coverFallback(ctx, width, height, page.title || 'CUBIERTA');
   }
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  for (const mark of layer.pencilMarks) applyPencilMark(ctx, mark, width, height);
+  ctx.restore();
 
   ctx.save();
   ctx.globalCompositeOperation = 'destination-out';
@@ -282,6 +347,7 @@ function drawCover(canvas) {
   ctx.globalCompositeOperation = 'source-over';
   for (const mark of layer.scratchMarks) applyScratchMark(ctx, mark, width, height);
   ctx.restore();
+
 }
 
 function updateBookGeometry() {
@@ -308,8 +374,13 @@ function updateBookGeometry() {
 
 function resizeCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.max(1, Math.round(rect.width));
-  canvas.height = Math.max(1, Math.round(rect.height));
+  const nextWidth = Math.max(1, Math.round(rect.width));
+  const nextHeight = Math.max(1, Math.round(rect.height));
+  if (canvas.width === nextWidth && canvas.height === nextHeight) return;
+  canvas.width = nextWidth;
+  canvas.height = nextHeight;
+  const page = canvas.closest('.page')?.__pageData;
+  invalidateLayerComposite(page ? layerForPage(page) : null);
   drawCover(canvas);
 }
 
@@ -342,7 +413,8 @@ async function renderPage(side, page) {
   el.__pageData = page || null;
 
   el.classList.toggle('is-empty', !page);
-  el.classList.toggle('has-info', Boolean(page));
+  el.classList.toggle('is-virtual-page', Boolean(page?.virtual));
+  el.classList.toggle('has-info', Boolean(page && !page.virtual));
   popover.innerHTML = pageInfoHtml(page);
 
   if (!page) {
@@ -351,9 +423,57 @@ async function renderPage(side, page) {
     return;
   }
 
+  if (page.virtual) {
+    img.removeAttribute('src');
+    await ensureLayerCover(page);
+    resizeCanvas(canvas);
+    drawCover(canvas);
+    return;
+  }
+
   await setImageFromBase(img, pageAsset(page, 'base'), 'jpg-png');
   await ensureLayerCover(page);
   resizeCanvas(canvas);
+  drawCover(canvas);
+}
+
+function pageIndexItems() {
+  const pages = sortedPages(state.book);
+  const items = [{ label: '▣', title: 'Portada', index: 0 }];
+  for (let spread = 0; spread < spreadCount(); spread += 1) {
+    const start = spread * 2 + 1;
+    const end = Math.min(start + 1, pages.length);
+    items.push({ label: end > start ? `${start}-${end}` : `${start}`, title: `Páginas ${start}${end > start ? ` y ${end}` : ''}`, index: spread + 1 });
+  }
+  items.push({ label: '★', title: 'Homenaje', index: finalBlankIndex() });
+  items.push({ label: '□', title: 'Contraportada', index: backIndex() });
+  return items;
+}
+
+function renderPageIndex() {
+  if (!pageIndex) return;
+  const signature = `${sortedPages(state.book).length}:${backIndex()}`;
+  if (state.indexRenderedFor !== signature) {
+    pageIndex.innerHTML = '';
+    for (const item of pageIndexItems()) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'page-index-button';
+      button.textContent = item.label;
+      button.title = item.title;
+      button.setAttribute('aria-label', item.title);
+      button.dataset.pageIndex = String(item.index);
+      button.addEventListener('click', () => goToPage(item.index));
+      pageIndex.append(button);
+    }
+    state.indexRenderedFor = signature;
+  }
+
+  for (const button of pageIndex.querySelectorAll('.page-index-button')) {
+    const active = Number(button.dataset.pageIndex) === state.pageIndex;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-current', active ? 'page' : 'false');
+  }
 }
 
 async function renderCurrentPage() {
@@ -364,8 +484,8 @@ async function renderCurrentPage() {
   const atSpread = !atCover && !atBack;
   const atFinalBlank = state.pageIndex === finalBlankIndex();
   const spread = atSpread ? state.pageIndex - 1 : -1;
-  const leftPage = atSpread ? (pages[spread * 2] || null) : null;
-  const rightPage = atSpread ? (pages[spread * 2 + 1] || null) : null;
+  const leftPage = atFinalBlank ? FINAL_LEFT_PAGE : (atSpread ? (pages[spread * 2] || null) : null);
+  const rightPage = atFinalBlank ? FINAL_RIGHT_PAGE : (atSpread ? (pages[spread * 2 + 1] || null) : null);
 
   document.body.classList.toggle('cover-active', atCover || atBack);
   document.body.classList.toggle('back-cover-active', atBack);
@@ -374,6 +494,7 @@ async function renderCurrentPage() {
   document.body.classList.toggle('tool-eraser', state.activeTool === 'eraser');
   document.body.classList.toggle('tool-coin', state.activeTool === 'coin');
   document.body.classList.toggle('tool-monocle', state.activeTool === 'monocle');
+  document.body.classList.toggle('tool-pencil', state.activeTool === 'pencil');
 
   if (atCover || atBack) {
     const base = atBack ? state.book.covers?.back : state.book.covers?.front;
@@ -394,6 +515,7 @@ async function renderCurrentPage() {
     if (mortadelo) mortadelo.hidden = false;
   }
 
+  renderPageIndex();
   prevPageButton.disabled = state.pageIndex === 0;
   nextPageButton.disabled = state.pageIndex === backIndex();
 }
@@ -426,17 +548,30 @@ function playFlipSound() {
 
 async function goToPage(nextIndex) {
   const clamped = Math.max(0, Math.min(backIndex(), nextIndex));
-  if (clamped === state.pageIndex) return;
+  if (clamped === state.pageIndex || state.isTurningPage) return;
+  state.isTurningPage = true;
   const direction = clamped > state.pageIndex ? 1 : -1;
-  if (!state.soundTouched) setSoundEnabled(true);
-  playFlipSound();
-  playPageTurn(direction);
-  state.pageIndex = clamped;
-  await renderCurrentPage();
+  try {
+    if (!state.soundTouched) setSoundEnabled(true);
+    playFlipSound();
+    playPageTurn(direction);
+    state.pageIndex = clamped;
+    await renderCurrentPage();
+  } finally {
+    window.setTimeout(() => { state.isTurningPage = false; }, 40);
+  }
+}
+
+function handleNavClick(event, delta) {
+  event.preventDefault();
+  event.stopPropagation();
+  goToPage(state.pageIndex + delta);
 }
 
 function activeToolMatches(page) {
-  return page?.tool === state.activeTool;
+  if (!page) return false;
+  if (state.activeTool === 'eraser' || state.activeTool === 'pencil') return true;
+  return page.tool === state.activeTool;
 }
 
 function applyToolAt(canvas, clientX, clientY) {
@@ -449,28 +584,52 @@ function applyToolAt(canvas, clientX, clientY) {
   if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
 
   const layer = layerForPage(page);
-  const normalized = { x: x / rect.width, y: y / rect.height };
+  const paintX = state.activeTool === 'pencil' ? x + PENCIL_TIP_OFFSET_X : x;
+  const paintY = state.activeTool === 'pencil' ? y + PENCIL_TIP_OFFSET_Y : y;
+  const normalized = { x: paintX / rect.width, y: paintY / rect.height };
   const minSide = Math.min(rect.width, rect.height);
+  const previous = layer.lastPointer || normalized;
+  let audio = null;
 
-  if (activeToolMatches(page)) {
+  if (state.activeTool === 'pencil') {
+    const mark = { ...normalized, fromX: previous.x, fromY: previous.y, tool: 'pencil', size: 3.2 / minSide };
+    layer.pencilMarks.push(mark);
+    applyMarkDirect(canvas, layer, 'pencil', mark);
+    audio = 'pencil';
+  } else if (activeToolMatches(page)) {
     if (state.activeTool === 'coin') {
-      layer.erasePoints.push({ ...normalized, tool: 'coin', rx: COIN_RADIUS_X / minSide, ry: COIN_RADIUS_Y / minSide });
+      const mark = { ...normalized, tool: 'coin', rx: COIN_RADIUS_X / minSide, ry: COIN_RADIUS_Y / minSide };
+      layer.erasePoints.push(mark);
+      invalidateLayerComposite(layer);
+      drawCover(canvas);
+      audio = 'erase';
     } else if (state.activeTool === 'eraser') {
-      layer.erasePoints.push({ ...normalized, tool: 'eraser', radius: ERASER_RADIUS / minSide });
+      const mark = { ...normalized, tool: 'eraser', radius: ERASER_RADIUS / minSide };
+      layer.erasePoints.push(mark);
+      invalidateLayerComposite(layer);
+      drawCover(canvas);
+      audio = 'erase';
     }
   } else if (state.activeTool === 'coin') {
-    layer.scratchMarks.push({ ...normalized, tool: 'coin', rx: COIN_RADIUS_X / minSide, ry: COIN_RADIUS_Y / minSide });
+    const mark = { ...normalized, tool: 'coin', rx: COIN_RADIUS_X / minSide, ry: COIN_RADIUS_Y / minSide };
+    layer.scratchMarks.push(mark);
+    applyMarkDirect(canvas, layer, 'scratch', mark);
+    audio = 'erase';
   } else {
     return;
   }
 
-  drawCover(canvas);
+  layer.lastPointer = normalized;
 
   const now = performance.now();
-  if (state.soundEnabled && now - state.lastEraseAt > ERASER_INTERVAL_MS) {
+  if (state.soundEnabled && audio === 'erase' && now - state.lastEraseAt > ERASER_INTERVAL_MS) {
     state.lastEraseAt = now;
     eraseSound.currentTime = 0;
     eraseSound.play().catch(() => {});
+  } else if (state.soundEnabled && audio === 'pencil' && now - state.lastPencilAt > PENCIL_INTERVAL_MS) {
+    state.lastPencilAt = now;
+    pencilSound.currentTime = 0;
+    pencilSound.play().catch(() => {});
   }
 }
 
@@ -487,11 +646,14 @@ function updateCursor(event) {
 }
 
 function pageCompositeDataUrl(pageEl) {
+  const page = pageEl.__pageData;
+  const currentLayer = page ? layerForPage(page) : null;
   const base = pageEl.querySelector('.page-base');
   const layer = pageEl.querySelector('.scratch-layer');
   const width = layer.width || Math.round(pageEl.getBoundingClientRect().width);
   const height = layer.height || Math.round(pageEl.getBoundingClientRect().height);
-  if (!width || !height) return '';
+  if (!width || !height || !currentLayer) return '';
+  if (currentLayer.compositeUrl && currentLayer.compositeVersion === currentLayer.version) return currentLayer.compositeUrl;
   const buffer = document.createElement('canvas');
   buffer.width = width;
   buffer.height = height;
@@ -500,11 +662,16 @@ function pageCompositeDataUrl(pageEl) {
   ctx.fillRect(0, 0, width, height);
   if (base?.complete && base.naturalWidth) ctx.drawImage(base, 0, 0, width, height);
   ctx.drawImage(layer, 0, 0, width, height);
-  return buffer.toDataURL('image/png');
+  currentLayer.compositeUrl = buffer.toDataURL('image/jpeg', .86);
+  currentLayer.compositeVersion = currentLayer.version;
+  return currentLayer.compositeUrl;
 }
 
 function updateMagnifier(event) {
-  if (!document.body.classList.contains('spread-active')) return;
+  if (!document.body.classList.contains('spread-active') || document.body.classList.contains('final-tribute-active')) {
+    magnifierLens.style.backgroundImage = 'none';
+    return;
+  }
   magnifierLens.style.left = `${event.clientX}px`;
   magnifierLens.style.top = `${event.clientY}px`;
   magnifierLens.style.width = `${MONOCLE_SIZE}px`;
@@ -540,15 +707,18 @@ function setActiveTool(tool) {
   document.body.classList.toggle('tool-eraser', tool === 'eraser');
   document.body.classList.toggle('tool-coin', tool === 'coin');
   document.body.classList.toggle('tool-monocle', tool === 'monocle');
+  document.body.classList.toggle('tool-pencil', tool === 'pencil');
 }
 
 function setSoundEnabled(enabled) {
   state.soundEnabled = enabled;
   soundButton.setAttribute('aria-pressed', String(state.soundEnabled));
-  soundButton.textContent = `Sonido: ${state.soundEnabled ? 'on' : 'off'}`;
+  soundButton.textContent = state.soundEnabled ? '🔊' : '🔇';
+  soundButton.setAttribute('aria-label', state.soundEnabled ? 'Sonido activado' : 'Sonido desactivado');
 
   music.volume = 0.42;
   eraseSound.volume = 0.7;
+  pencilSound.volume = 0.62;
   pageFlipSound.volume = 0.8;
 
   if (state.soundEnabled) music.play().catch(() => {});
@@ -572,13 +742,16 @@ async function toggleFullscreen() {
 }
 
 function updateFullscreenLabel() {
-  fullscreenButton.textContent = document.fullscreenElement ? 'Restaurar' : 'Maximizar';
+  fullscreenButton.textContent = document.fullscreenElement ? '⤢' : '⛶';
+  fullscreenButton.setAttribute('aria-label', document.fullscreenElement ? 'Restaurar' : 'Maximizar');
 }
 
 function resetPages() {
   for (const layer of state.layerState.values()) {
     layer.erasePoints = [];
     layer.scratchMarks = [];
+    layer.pencilMarks = [];
+    invalidateLayerComposite(layer);
   }
   for (const canvas of document.querySelectorAll('.scratch-layer')) drawCover(canvas);
 }
@@ -600,6 +773,7 @@ async function init() {
   await setupStaticAssets();
   await renderCurrentPage();
   updateFullscreenLabel();
+  document.body.classList.remove('is-loading');
 }
 
 const resizeObserver = new ResizeObserver(() => {
@@ -615,9 +789,21 @@ stage.addEventListener('pointermove', (event) => {
 });
 
 stage.addEventListener('pointerdown', (event) => {
+  if (event.target.closest?.('button, .controls, .page-index')) return;
   if (!document.body.classList.contains('spread-active')) return;
   const targetCanvas = event.target.closest?.('.scratch-layer');
   if (!targetCanvas && state.activeTool !== 'monocle') return;
+  const page = targetCanvas?.closest('.page')?.__pageData;
+  const layer = page ? layerForPage(page) : null;
+  if (layer && targetCanvas) {
+    const rect = targetCanvas.getBoundingClientRect();
+    const rawX = event.clientX - rect.left;
+    const rawY = event.clientY - rect.top;
+    layer.lastPointer = {
+      x: (rawX + (state.activeTool === 'pencil' ? PENCIL_TIP_OFFSET_X : 0)) / rect.width,
+      y: (rawY + (state.activeTool === 'pencil' ? PENCIL_TIP_OFFSET_Y : 0)) / rect.height,
+    };
+  }
   state.isPointerDown = true;
   stage.classList.add('is-erasing');
   event.target.setPointerCapture?.(event.pointerId);
@@ -630,8 +816,10 @@ window.addEventListener('pointerup', () => {
 });
 
 document.addEventListener('pointerdown', enableSoundOnFirstGesture, { capture: true });
-prevPageButton.addEventListener('click', () => goToPage(state.pageIndex - 1));
-nextPageButton.addEventListener('click', () => goToPage(state.pageIndex + 1));
+prevPageButton.addEventListener('pointerdown', (event) => event.stopPropagation());
+nextPageButton.addEventListener('pointerdown', (event) => event.stopPropagation());
+prevPageButton.addEventListener('click', (event) => handleNavClick(event, -1));
+nextPageButton.addEventListener('click', (event) => handleNavClick(event, 1));
 document.addEventListener('keydown', (event) => {
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const target = event.target;
